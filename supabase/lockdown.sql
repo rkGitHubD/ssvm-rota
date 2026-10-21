@@ -2,8 +2,7 @@
 -- SSVM Rota — lock down app_data
 -- Run ONCE in Supabase → SQL Editor → New query.
 --
--- BEFORE RUNNING: set your new admin PIN on the line marked  >>> EDIT <<<
--- (at least 6 characters; it replaces the old default 1234).
+-- AFTER RUNNING: set the admin PIN in a separate query (see the end of this file).
 --
 -- What this does:
 --   • Blocks all direct access to app_data with the public (anon) key
@@ -67,19 +66,6 @@ update public.app_data
 set value = (select coalesce(jsonb_agg(m - 'pin' order by i), '[]'::jsonb)
              from jsonb_array_elements(value) with ordinality as t(m, i))
 where key = 'rota-members';
-
-do $$
-declare
-  v_pin text := 'SET-ADMIN-PIN-HERE';   -- >>> EDIT <<< your new admin PIN
-begin
-  if v_pin = 'SET-ADMIN-PIN-HERE' then
-    if exists (select 1 from public.rota_admin) then return; end if;  -- re-run: keep existing
-    raise exception 'Set your admin PIN on the line marked >>> EDIT <<< before running';
-  end if;
-  if length(v_pin) < 6 then raise exception 'Admin PIN must be at least 6 characters'; end if;
-  insert into public.rota_admin (id, pin_hash) values (1, extensions.crypt(v_pin, extensions.gen_salt('bf')))
-  on conflict (id) do update set pin_hash = excluded.pin_hash;
-end $$;
 
 update public.app_data set value = value - 'adminPin' where key = 'rota-config';
 delete from public.app_data where key = 'rota-supabase-cfg';
@@ -307,6 +293,16 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- Set the admin PIN — run from the SQL Editor only (not callable from the browser)
+create or replace function public.rota_set_admin_pin(p_pin text)
+returns text language plpgsql security definer set search_path = public as $$
+begin
+  if length(coalesce(p_pin, '')) < 6 then raise exception 'Admin PIN must be at least 6 characters'; end if;
+  insert into rota_admin (id, pin_hash) values (1, extensions.crypt(p_pin, extensions.gen_salt('bf')))
+  on conflict (id) do update set pin_hash = excluded.pin_hash;
+  return 'Admin PIN set';
+end $$;
+
 create or replace function public.rota_logout(p_token uuid)
 returns void language sql security definer set search_path = public as $$
   delete from rota_sessions where token = p_token;
@@ -315,7 +311,8 @@ $$;
 -- ── Who can call what ──────────────────────────────────────────────────────
 revoke execute on function
   public._rota_session(uuid), public._rota_too_many(text, int, interval),
-  public._rota_note(text), public._rota_set_pin(text, text), public._rota_strip(text, jsonb)
+  public._rota_note(text), public._rota_set_pin(text, text), public._rota_strip(text, jsonb),
+  public.rota_set_admin_pin(text)
   from public, anon, authenticated;
 
 revoke execute on function
@@ -330,6 +327,13 @@ grant execute on function
   to anon, authenticated;
 
 commit;
+
+-- ── NEXT: set the admin PIN ─────────────────────────────────────────────────
+-- Open a NEW query, paste this one line, put your PIN between the quotes, Run:
+--
+--   select rota_set_admin_pin('your-new-pin');
+--
+-- (At least 6 characters. Run it again any time to change the admin PIN.)
 
 -- Quick check — should list your data keys WITHOUT any pins:
 -- select key, jsonb_typeof(value) from app_data;
