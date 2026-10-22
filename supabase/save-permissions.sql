@@ -10,12 +10,12 @@ begin;
 
 -- ── Save one data set (signed-in users only) ───────────────────────────────
 -- Admin: anything.
--- Rota Leads: rotas, offers, members (not admin flags), special occasions and
+-- Rota Leads: rotas, offers, members (not admin flags) and
 --   the Rota Sheet data (sheets, registers, ticket entries, cash in hand).
 -- Other members: rotas, offers and only their own member record (no
 --   role/approval/admin changes, no removing anyone).
 -- Everything else (settings, services, sponsorships, inventory, itineraries,
---   prasadham, priests, activities) is admin-only.
+--   prasadham, priests, activities, special occasions) is admin-only.
 create or replace function public.rota_save(p_token uuid, p_key text, p_value jsonb)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
@@ -39,7 +39,7 @@ begin
 
   if not s.is_admin and not (
        p_key in ('rota-rotas', 'rota-offers', 'rota-members')
-    or (v_manage and p_key in ('rota-specials', 'rota-sheets', 'rota-registers', 'rota-regentries', 'rota-cash'))) then
+    or (v_manage and p_key in ('rota-sheets', 'rota-registers', 'rota-regentries', 'rota-cash'))) then
     return jsonb_build_object('error', case when p_key = 'rota-config' then 'Only the admin can change settings'
                                             else 'You don''t have permission to change this' end);
   end if;
