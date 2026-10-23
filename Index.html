@@ -5112,9 +5112,9 @@ const isSwap = o => o && o.type === "swap";
 const slotText = s => s ? new Date(s.date).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"}) + (s.isSpecial ? " ⭐ "+s.label : "") : "—";
 // Is this member in this role on this week?
 const inRole = (r, role, id) => role === "lead" ? (r||{}).lead === id : ((r||{}).secondary||[]).includes(id);
-// Members who can take a role: leads come from Rota Leads and Secondaries (as in the lead picker)
+// Members who can take a role in a swap: Rota Leads swap only with Rota Leads, Secondaries only with Secondaries
 const eligibleFor = (members, role) => members.filter(m => m.approved !== false && m.approved !== "rejected"
-  && (role === "lead" ? (m.role === "primary" || m.role === "secondary") : m.role === "secondary"));
+  && m.role === (role === "lead" ? "primary" : "secondary"));
 
 // ── Member side: ask the admin for a swap ─────────────────────────────────────
 function SwapRequestForm({ rotas, allSlots, members, generalOffers, upGeneralOffers, currentUser, showToast }) {
