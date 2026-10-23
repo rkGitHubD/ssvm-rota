@@ -5457,10 +5457,10 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     const done = new Date(sl.date) < today;
     const lead = name(r.lead), sec = (r.secondary || []).map(name).filter(Boolean).join(", ");
     if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
-    const remarks = r.notes || "";
     return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
-      + "</td><td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td><td>" + (esc(lead) || who0(done)) + "</td>" + status(done, lead)
-      + "<td>" + (esc(sec) || who0(done)) + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
+      + "</td><td>" + (esc(lead) || who0(done)) + "</td>" + status(done, lead)
+      + "<td>" + (esc(sec) || who0(done)) + "</td>" + status(done, sec)
+      + "<td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td></tr>";
   }).join("");
 
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
@@ -5468,8 +5468,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     + "body{width:190mm;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#1e293b;background:#fff}"
     + ".hd{display:flex;align-items:center;gap:8px;border-bottom:2px solid #3730a3;padding-bottom:5px;margin-bottom:6px}"
     + ".hd img{height:36px;width:36px;object-fit:contain}.org{font-size:13px;font-weight:900;color:#1e1b4b}.sub{font-size:8.5px;color:#64748b}"
-    + "table{width:100%;border-collapse:collapse}th{background:#3730a3;color:#fff;font-size:8.5px;text-align:left;padding:3px 4px}"
-    + "td{padding:2.5px 4px;border-bottom:1px solid #e2e8f0;font-size:9px}"
+    + "table{width:100%;border-collapse:collapse;border:1.5px solid #334155}th,td{border:1px solid #94a3b8}th{background:#3730a3;color:#fff;font-size:8.5px;text-align:left;padding:3px 4px}"
+    + "td{padding:2.5px 4px;font-size:9px}"
     + ".st{font-weight:bold;text-align:center;width:62px}.ok{color:#166534;background:#dcfce7}.tbc{color:#b91c1c;background:#fee2e2}.tbcname{color:#b91c1c;font-weight:bold}"
     + "tr.past td{background:#94a3b8;color:#f8fafc}tr.past td.done{background:#64748b;color:#fff}"
     + ".key{display:flex;gap:10px;margin-top:6px;font-size:8.5px;color:#475569}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
@@ -5480,8 +5480,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     + "<div class='sub'>Rota schedule · January – December " + year + "</div></div>"
     + "<div class='sub' style='margin-left:auto;text-align:right'>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })
     + "<br/>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
-  h += "<table><tr><th>Date</th><th>Rota</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Remarks</th></tr>"
-    + (rowsHtml || "<tr><td colspan='7' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</table>";
+  h += "<table><tr><th>Date</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Rota</th></tr>"
+    + (rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</table>";
   h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#64748b;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
   h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
     + "<script>window.onload=function(){var h=document.body.scrollHeight,max=1040;if(h>max)document.body.style.zoom=(max/h).toFixed(3);setTimeout(function(){window.print();},300);};<\/script>"
