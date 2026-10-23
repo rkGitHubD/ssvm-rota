@@ -1,9 +1,10 @@
 #!/bin/bash
-# Builds docs/index.html (served by GitHub Pages) from the master single-file app.
+# Builds docs/index.html (served by GitHub Pages) from the master single-file app, Index.html in this folder.
 # Usage: ./build.sh [path/to/Index.html]
 set -euo pipefail
-SRC="${1:-$HOME/Documents/SSVM/SSVM Rota app/Index.html}"
+SRC="${1:-}"
 cd "$(dirname "$0")"
+SRC="${SRC:-Index.html}"
 mkdir -p build docs
 
 # 1. Split the master file: inline <style> and the text/babel app script
