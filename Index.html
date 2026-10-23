@@ -5482,13 +5482,23 @@ function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } =
   const online = parseFloat(at.onlineAmount || 0) + parseFloat(db.onlineAmount || 0) - parseFloat(ev.onlineAmount || 0);
   const income = parseFloat(at.amount || 0) + parseFloat(db.amount || 0) + hundi;
   const net = income - parseFloat(ev.amount || 0);
-  const range = (r, n) => (parseInt(n) || 0) > 0 ? esc(r.start) + " – " + esc(r.end) : "—";
+  // First and last numbers issued today: the last is r.end, the first is (count − 1) before it
+  const range = (r, n) => {
+    n = parseInt(n) || 0;
+    const m = String(r.end || "").match(/^(.*?)(\d+)$/);
+    if (!n || !m) return "—";
+    const first = fmtRegNum(m[1], parseInt(m[2], 10) - n + 1);
+    return n === 1 ? esc(r.end) : esc(first) + " – " + esc(r.end);
+  };
   const sponsors = [].concat(
     (sponsorships || []).flatMap(a => (a.donations || []).filter(d => (d.rotaDates || []).includes(s.date)).map(d => esc(d.donor) + " <i>(" + esc(a.name) + ")</i>")),
     servicePaidOn(rotaSheets, s.date).map(d => esc(d.donor) + " <i>(" + esc(d.area) + ")</i>"),
     s.sponsors ? [esc(s.sponsors)] : []);
   const regRow = (name, r, n) => "<tr><td><b>" + name + "</b></td><td>" + range(r, n) + "</td><td class='n'>" + (parseInt(n) || 0) + "</td><td class='n'>" + gbp(r.cashAmount) + "</td><td class='n'>" + gbp(r.sumupAmount) + "</td><td class='n'>" + gbp(r.onlineAmount) + "</td><td class='n'><b>" + gbp(r.amount) + "</b></td></tr>";
   const donors = db.donors || [], payees = ev.payees || [];
+  const inBy = { sumup: parseFloat(at.sumupAmount || 0) + parseFloat(db.sumupAmount || 0), online: parseFloat(at.onlineAmount || 0) + parseFloat(db.onlineAmount || 0) };
+  // "Cash £x · Card £y · Online £z" for a list of donations or expenses
+  const split = list => ["cash", "sumup", "online"].map(k => pay(k) + " " + gbp(list.filter(d => d.pay === k).reduce((t, d) => t + parseFloat(d.amount || 0), 0))).join(" · ");
   const sig = s.signature ? "<img src='" + s.signature + "' style='height:34px'/>" : s.rotaLeadSig ? "<div style='font-size:13px;font-style:italic;padding-top:10px'>" + esc(s.rotaLeadSig) + "</div>" : "";
 
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota Sheet " + esc(s.date) + "</title><style>"
@@ -5525,21 +5535,24 @@ function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } =
   h += "<h2>Money taken</h2><table><tr><th>Register</th><th>Numbers</th><th class='n'>Count</th><th class='n'>Cash</th><th class='n'>Card</th><th class='n'>Online</th><th class='n'>Total</th></tr>"
     + regRow("Archana" + (at.dayType === "special" ? " (£5)" : " (£3)"), at, at.ticketCount)
     + regRow("Donations", db, db.count)
-    + "<tr><td><b>Hundi</b></td><td>—</td><td></td><td class='n'>" + gbp(hundi) + "</td><td></td><td></td><td class='n'><b>" + gbp(hundi) + "</b></td></tr>"
+    + "<tr><td><b>Hundi</b></td><td>—</td><td class='n'>—</td><td class='n'>" + gbp(hundi) + "</td><td class='n'>£0.00</td><td class='n'>£0.00</td><td class='n'><b>" + gbp(hundi) + "</b></td></tr>"
+    + "<tr class='t'><td colspan='3'>Income</td><td class='n'>" + gbp(cashIn) + "</td><td class='n'>" + gbp(inBy.sumup) + "</td><td class='n'>" + gbp(inBy.online) + "</td><td class='n'>" + gbp(income) + "</td></tr>"
     + regRow("Expenses (out)", ev, ev.count)
-    + "<tr class='t'><td colspan='6'>Net revenue (income " + gbp(income) + " − expenses " + gbp(ev.amount) + ")</td><td class='n'>" + gbp(net) + "</td></tr></table>";
+    + "<tr class='t'><td colspan='3'>Net (income − expenses)</td><td class='n'>" + gbp(cashIn - cashOut) + "</td><td class='n'>" + gbp(card) + "</td><td class='n'>" + gbp(online) + "</td><td class='n'>" + gbp(net) + "</td></tr></table>";
 
   // Donations and expenses, side by side
   h += "<div class='grid' style='grid-template-columns:1fr 1fr;margin-top:2px'>";
   h += "<div><h2>Donations (" + donors.length + ")</h2>" + (donors.length
     ? "<table><tr><th>No.</th><th>Donor</th><th>For</th><th>Date</th><th>Pay</th><th class='n'>£</th></tr>"
       + donors.map(d => "<tr><td>" + esc(d.no) + "</td><td>" + esc(d.name) + "</td><td>" + esc(d.purpose || "General") + "</td><td>" + day(d.date) + "</td><td>" + pay(d.pay) + "</td><td class='n'>" + gbp(d.amount) + "</td></tr>").join("")
+      + "<tr class='t'><td colspan='5'>" + split(donors) + "</td><td class='n'>" + gbp(donors.reduce((t, d) => t + parseFloat(d.amount || 0), 0)) + "</td></tr>"
       + "</table>"
     : "<div class='none'>No donations</div>") + "</div>";
   h += "<div><h2>Expenses (" + payees.length + ")</h2>" + (payees.length
     ? "<table><tr><th>No.</th><th>Paid to</th><th>For</th><th>Date</th><th>Pay</th><th class='n'>£</th><th>Signed</th></tr>"
       + payees.map(d => "<tr><td>" + esc(d.no) + "</td><td>" + esc(d.name) + "<div class='sub'>" + esc(d.contact) + "</div></td><td>" + esc(d.purpose) + "</td><td>" + day(d.date) + "</td><td>" + pay(d.pay) + "</td><td class='n'>" + gbp(d.amount) + "</td><td>"
         + (d.sig ? "<img src='" + d.sig + "' style='height:16px'/>" : "<span class='bad'>missing</span>") + "</td></tr>").join("")
+      + "<tr class='t'><td colspan='5'>" + split(payees) + "</td><td class='n'>" + gbp(payees.reduce((t, d) => t + parseFloat(d.amount || 0), 0)) + "</td><td></td></tr>"
       + "</table>"
     : "<div class='none'>No expenses</div>") + "</div></div>";
 
@@ -5874,7 +5887,7 @@ function orderMoney(r, price, dir) {
 }
 const NO_ORDER = { orderPay:"", orderCount:0 };
 // Donations also clear the amount and donor once paid, ready for the next donor
-const NO_DONATION = { ...NO_ORDER, perAmount:"", orderName:"", orderContact:"", orderServiceId:"", orderServiceName:"", orderDate:"" };
+const NO_DONATION = { ...NO_ORDER, perAmount:"", orderName:"", orderContact:"", orderServiceId:"", orderServiceName:"", orderServiceCharge:"", orderDate:"" };
 // Admin correction: empty a register on an open sheet and start its numbering again
 const resetRegister = (r, clear) => ({ ...r, count:0, ticketCount:0, end:r.start, amount:"0.00",
   cashAmount:"0.00", sumupAmount:"0.00", onlineAmount:"0.00", donors:[], payees:[], ...clear });
@@ -5890,7 +5903,8 @@ const servicePaidOn = (sheets, date) => (sheets||[]).flatMap(sh => (sh.donationB
 // An email address, or a phone number with at least 7 digits
 const validContact = c => /^\S+@\S+\.\S+$/.test((c||"").trim()) || (c||"").replace(/\D/g,"").length >= 7;
 // Donations and expenses can only be taken once they have an amount above £0, a name and a contact
-const partyReady = r => parseFloat((r||{}).perAmount||0) > 0 && !!((r||{}).orderName||"").trim() && validContact((r||{}).orderContact);
+const partyReady = r => parseFloat((r||{}).perAmount||0) > 0 && !!((r||{}).orderName||"").trim() && validContact((r||{}).orderContact)
+  && parseFloat((r||{}).perAmount||0) >= parseFloat((r||{}).orderServiceCharge||0);
 const donationReady = partyReady;
 // Expenses also clear the receiver's signature once paid
 const NO_EXPENSE = { ...NO_DONATION, orderSig:"", orderPurpose:"", orderDate:"" };
@@ -5955,7 +5969,9 @@ function SheetRegCard(props) {
   var open = orderCount > 0;
   // Donations and expenses need an amount, a name and a contact before any payment can be taken
   var ready = !donor || (expense ? expenseReady : partyReady)({perAmount:perAmt, orderName:donor.name, orderContact:donor.contact,
-    orderPurpose:expense&&expense.purpose, orderDate:expense&&expense.date});
+    orderPurpose:expense&&expense.purpose, orderDate:expense&&expense.date, orderServiceCharge:props.serviceCharge});
+  var minAmt = parseFloat(props.serviceCharge||0);
+  var belowMin = minAmt > 0 && perAmt !== "" && parseFloat(perAmt||0) < minAmt;
   var needSig = !!onSig;
   var colors = {
     indigo: {bg:"bg-indigo-50", border:"border-indigo-200", badge:"bg-indigo-600", text:"text-indigo-700"},
@@ -5988,9 +6004,12 @@ function SheetRegCard(props) {
         <div className="px-4 pb-2 flex items-center gap-2">
           <span className="text-xs text-slate-500 w-20 flex-shrink-0">{amtLabel}</span>
           <input type="number" value={perAmt} onChange={function(e){onPerAmt(e.target.value);}}
-            placeholder="0.00" disabled={isClosed||open}
-            className="flex-1 border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white disabled:bg-slate-100"/>
+            placeholder="0.00" disabled={isClosed||open} min={minAmt||undefined}
+            className={"flex-1 border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white disabled:bg-slate-100 "+(belowMin?"border-red-400":"border-slate-200")}/>
         </div>
+      )}
+      {minAmt > 0 && !open && (
+        <div className={"px-4 pb-2 -mt-1 text-xs "+(belowMin?"text-red-600 font-semibold":"text-slate-400")}>Minimum £{minAmt.toFixed(2)} for this service</div>
       )}
       {donor && (
         <div className="px-4 pb-2 space-y-1.5">
@@ -6145,7 +6164,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
   var incrDon = function() {
     if (isClosed) return;
     var db = s.donationBook||{};
-    if (!donationReady(db)) return showToast("Enter the amount, donor name and email or phone first","error");
+    if (!donationReady(db)) return showToast(parseFloat(db.perAmount||0) < parseFloat(db.orderServiceCharge||0) ? "Amount can't be less than £"+db.orderServiceCharge+" for "+db.orderServiceName : "Enter the amount, donor name and email or phone first","error");
     if (!db.orderPay) return showToast("Choose Cash, Card or Online first","error");
     var prefix = donationReg ? (donationReg.prefix||"D") : "D";
     var firstNum = db.firstNum || parseInt((db.start||"").replace(/\D/g,"")+1)||1;
@@ -6279,8 +6298,8 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         count={parseInt(db.count||0)} total={db.amount||"0.00"}
         orderPay={db.orderPay} orderCount={db.orderCount} price={db.perAmount} perAmt={db.perAmount||""}
         nextNum={nextRegNum(db, donationReg ? (donationReg.prefix||"D") : "D", db.count)}
-        services={sevas} serviceId={db.orderServiceId} donationDate={db.orderDate||s.date}
-        onService={function(sv){up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",perAmount:sv?sv.charge:db.perAmount}});}}
+        services={sevas} serviceId={db.orderServiceId} serviceCharge={db.orderServiceCharge} donationDate={db.orderDate||s.date}
+        onService={function(sv){up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",orderServiceCharge:sv?sv.charge:"",perAmount:sv?sv.charge:db.perAmount}});}}
         startNum={db.start} endNum={db.end}
         cash={db.cashAmount||"0.00"} sumup={db.sumupAmount||"0.00"} online={db.onlineAmount||"0.00"}
         onIncr={incrDon} onDecr={decrDon}
@@ -6527,7 +6546,7 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
   const incrDonation = () => {
     if (s.status === "closed") return;
     const db       = s.donationBook;
-    if (!donationReady(db)) return showToast("Enter the amount, donor name and email or phone first", "error");
+    if (!donationReady(db)) return showToast(parseFloat(db.perAmount||0) < parseFloat(db.orderServiceCharge||0) ? "Amount can't be less than £"+db.orderServiceCharge+" for "+db.orderServiceName : "Enter the amount, donor name and email or phone first", "error");
     if (!db.orderPay) return showToast("Choose Cash, Card or Online first", "error");
     const prefix   = donationReg ? (donationReg.prefix || "D") : "D";
     const firstNum = db.firstNum || parseInt((db.start||"").replace(/\D/g,"")) + 1 || 1;
@@ -7144,8 +7163,8 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
                   count={parseInt(db.count||0)} total={db.amount||"0.00"}
                   orderPay={db.orderPay} orderCount={db.orderCount} price={db.perAmount} perAmt={db.perAmount||""}
                   nextNum={nextRegNum(db, donationReg ? (donationReg.prefix||"D") : "D", db.count)}
-                  services={sevas||[]} serviceId={db.orderServiceId} donationDate={db.orderDate||s.date}
-                  onService={sv=>up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",perAmount:sv?sv.charge:db.perAmount}})}
+                  services={sevas||[]} serviceId={db.orderServiceId} serviceCharge={db.orderServiceCharge} donationDate={db.orderDate||s.date}
+                  onService={sv=>up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",orderServiceCharge:sv?sv.charge:"",perAmount:sv?sv.charge:db.perAmount}})}
                   cash={db.cashAmount||"0.00"} sumup={db.sumupAmount||"0.00"} online={db.onlineAmount||"0.00"}
                   onIncr={incrDonation} onDecr={decrDonation}
                   onPayType={p=>up({donationBook:{...db,orderPay:p}})}
