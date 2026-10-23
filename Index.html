@@ -5234,6 +5234,23 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
 
   const reset = (newRole) => { setRows([{ slotKey:"", fromId:"", toId:"" }]); setLinked([]); if (newRole) setRole(newRole); };
   const setRow = (i, patch) => setRows(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
+  // The new person for a row, optionally swapping weeks with them ("id|theirSlotKey").
+  // A week added this way is marked auto and removed again if the choice changes.
+  const pickPerson = (i, value) => {
+    const [toId, theirKey] = value.split("|");
+    const row = rows[i];
+    let next = rows.map((r, j) => j === i ? { ...r, toId, pairKey: theirKey || "" } : r)
+      .filter(r => !(r.auto && r.pairOf === row.slotKey && r.slotKey === row.pairKey));
+    if (theirKey) {
+      const back = { slotKey: theirKey, fromId: toId, toId: current(row.slotKey, row.fromId), auto: true, pairOf: row.slotKey };
+      const k = next.findIndex(r => r.slotKey === theirKey && r.fromId === toId);
+      next = k >= 0 ? next.map((r, j) => j === k ? { ...r, toId: back.toId } : r) : [...next, back];
+    }
+    setRows(next);
+  };
+  // Each person's upcoming weeks in this role
+  const weeksOf = id => upcoming.filter(s => inRole(rotas[s.key], role, id));
+  const dayText = s => new Date(s.date).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}) + (s.isSpecial ? " ⭐" : "");
   const pickWeek = (i, k) => setRow(i, { slotKey:k, fromId: role === "lead" ? ((rotas[k]||{}).lead||"") : (((rotas[k]||{}).secondary||[])[0]||"") });
   // Each week takes the person from the week above; the first takes the last one's person
   const rotate = () => setRows(rows.map((r, i) => ({ ...r, toId: current(rows[(i + rows.length - 1) % rows.length].slotKey, rows[(i + rows.length - 1) % rows.length].fromId) })));
@@ -5242,7 +5259,7 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
   const planFrom = req => {
     const r1 = { slotKey:req.slotKey, fromId:req.memberId, toId:req.withId||"" };
     const plan = [r1];
-    if (req.withSlotKey) plan.push({ slotKey:req.withSlotKey, fromId: req.role === "lead" ? ((rotas[req.withSlotKey]||{}).lead||"") : (req.withId || ((rotas[req.withSlotKey]||{}).secondary||[])[0] || ""), toId:req.memberId });
+    if (req.withSlotKey) { plan.push({ slotKey:req.withSlotKey, fromId: req.role === "lead" ? ((rotas[req.withSlotKey]||{}).lead||"") : (req.withId || ((rotas[req.withSlotKey]||{}).secondary||[])[0] || ""), toId:req.memberId, auto:true, pairOf:req.slotKey }); r1.pairKey = req.withSlotKey; }
     if (req.withSlotKey && !r1.toId) r1.toId = plan[1].fromId;
     setRole(req.role); setRows(plan); setLinked([req.id]); setOpen(true);
   };
@@ -5339,9 +5356,11 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Swap</span>
               {["lead","secondary"].map(r => (
-                <button key={r} onClick={()=>reset(r)}
-                  className={"text-xs px-3 py-1.5 rounded-full font-semibold border "+(role===r?"bg-violet-600 text-white border-violet-600":"bg-white text-slate-600 border-slate-200")}>{r === "lead" ? "Rota Leads" : "Secondaries"}</button>
+                <button key={r} onClick={()=>reset(r)} disabled={linked.length > 0 && role !== r}
+                  title={linked.length > 0 && role !== r ? "This request is for a "+SWAP_ROLE[role]+" — Clear the plan to swap "+(r==="lead"?"Rota Leads":"Secondaries") : ""}
+                  className={"text-xs px-3 py-1.5 rounded-full font-semibold border disabled:opacity-30 "+(role===r?"bg-violet-600 text-white border-violet-600":"bg-white text-slate-600 border-slate-200")}>{r === "lead" ? "Rota Leads" : "Secondaries"}</button>
               ))}
+              {linked.length > 0 && <span className="text-xs text-violet-700">Planning {SWAP_ROLE[role]} request</span>}
             </div>
             {rows.map((r, i) => {
               const rr = rotas[r.slotKey]||{};
@@ -5359,11 +5378,20 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
                     </select>
                   )}
                   <span className="text-slate-400 text-center hidden md:block">→</span>
-                  <select value={r.toId} onChange={e=>setRow(i, { toId:e.target.value })} disabled={!r.slotKey} className={sel}>
+                  <select value={r.toId ? r.toId+"|"+(r.pairKey||"") : ""} onChange={e=>pickPerson(i, e.target.value)} disabled={!r.slotKey || r.auto} className={sel}
+                    title={r.auto ? "Filled in by the swap above" : ""}>
                     <option value="">New {SWAP_ROLE[role]}…</option>
-                    {people.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    {people.filter(m => m.id !== current(r.slotKey, r.fromId)).map(m => {
+                      const theirs = weeksOf(m.id).filter(s => s.key !== r.slotKey);
+                      return (
+                        <optgroup key={m.id} label={m.name+(theirs.length ? " — "+theirs.length+" week"+(theirs.length>1?"s":"") : " — no weeks")}>
+                          {theirs.map(s => <option key={s.key} value={m.id+"|"+s.key}>{m.name} ⇄ swap for {dayText(s)}</option>)}
+                          <option value={m.id+"|"}>{m.name} — just takes this week</option>
+                        </optgroup>
+                      );
+                    })}
                   </select>
-                  <button onClick={()=>setRows(rows.length > 1 ? rows.filter((_, j) => j !== i) : [{ slotKey:"", fromId:"", toId:"" }])}
+                  <button onClick={()=>setRows(rows.length > 1 ? rows.filter((_, j) => j !== i && !(rows[j].auto && rows[j].pairOf === r.slotKey)) : [{ slotKey:"", fromId:"", toId:"" }])}
                     className="text-slate-400 hover:text-red-500 text-sm px-2" title="Remove this week">✕</button>
                 </div>
               );
