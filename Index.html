@@ -5457,7 +5457,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
     const remarks = r.notes || "";
     return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
-      + "</td><td>" + [sl.weekNum ? "Week " + sl.weekNum : "", ...sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>")].filter(Boolean).join(" · ") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
+      + "</td><td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
       + "<td>" + (esc(sec) || "—") + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
   }).join("");
 
