@@ -5352,22 +5352,19 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
             </div>
           )}
 
-          {/* Planner */}
+          {pending.length === 0 && linked.length === 0 && (
+            <div className="text-sm text-slate-400 text-center py-4">No swap requests waiting. Rota Leads and Secondaries ask for swaps from My Requests.</div>
+          )}
+
+          {/* Planner — only for a request the admin is working on */}
+          {linked.length > 0 && (<>
           <div className="space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Swap</span>
-              {["lead","secondary"].map(r => (
-                <button key={r} onClick={()=>reset(r)} disabled={linked.length > 0 && role !== r}
-                  title={linked.length > 0 && role !== r ? "This request is for a "+SWAP_ROLE[role]+" — Clear the plan to swap "+(r==="lead"?"Rota Leads":"Secondaries") : ""}
-                  className={"text-xs px-3 py-1.5 rounded-full font-semibold border disabled:opacity-30 "+(role===r?"bg-violet-600 text-white border-violet-600":"bg-white text-slate-600 border-slate-200")}>{r === "lead" ? "Rota Leads" : "Secondaries"}</button>
-              ))}
-              {linked.length > 0 && <span className="text-xs text-violet-700">Planning {SWAP_ROLE[role]} request</span>}
-            </div>
+            <div className="text-xs font-bold text-violet-700 uppercase tracking-wider">Plan the {SWAP_ROLE[role]} swap</div>
             {rows.map((r, i) => {
               const rr = rotas[r.slotKey]||{};
               return (
                 <div key={i} className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_auto_1.2fr_auto] gap-2 items-center bg-slate-50 rounded-xl p-2">
-                  <select value={r.slotKey} onChange={e=>pickWeek(i, e.target.value)} className={sel}>
+                  <select value={r.slotKey} onChange={e=>pickWeek(i, e.target.value)} disabled={i === 0 || r.auto} className={sel}>
                     <option value="">Choose week…</option>
                     {upcoming.map(s => <option key={s.key} value={s.key}>{weekLabel(s)}</option>)}
                   </select>
@@ -5425,8 +5422,9 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
           <div className="flex gap-2">
             <button onClick={apply} disabled={filled.length === 0 || problems.length > 0}
               className="bg-violet-600 hover:bg-violet-700 text-white px-5 py-2 rounded-xl text-sm font-bold disabled:opacity-40">Apply swap to the rota</button>
-            {(rows.length > 1 || rows[0].slotKey) && <button onClick={()=>reset()} className="text-sm text-slate-500 px-2">Clear</button>}
+            <button onClick={()=>reset()} className="text-sm text-slate-500 px-2">Cancel</button>
           </div>
+          </>)}
         </div>
       )}
     </div>
