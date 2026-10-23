@@ -5447,9 +5447,9 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   });
   const slots = [...weeks, ...extra].sort((a, b) => new Date(a.date) - new Date(b.date));
   const spName = sp => sp.label || sp.tag || "Special";
-  const status = (done, who) => done ? "<td class='st done'>Rota Completed</td>" : who ? "<td class='st ok'>Confirmed</td>" : "<td class='st tbc'>To be confirmed</td>";
-  // Nobody assigned: "To be confirmed" in red (a week that's over just shows a dash)
-  const who0 = done => done ? "—" : "<span class='tbcname'>To be confirmed</span>";
+  const status = (done, who) => done ? "<td class='st done'>Done</td>" : who ? "<td class='st ok'>Confirmed</td>" : "<td class='st tbc'>TBC</td>";
+  // Nobody assigned: TBC in red (a week that's over just shows a dash)
+  const who0 = done => done ? "—" : "<span class='tbcname'>TBC</span>";
   let counts = { ok:0, tbc:0, done:0 };
   const rows = slots.map(sl => {
     // A Sunday that is also a special occasion: use whichever has the assignment
@@ -5471,8 +5471,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     const n = pages.length === 0 ? FIRST : REST;
     pages.push(rows.slice(i, i + n)); i += n;
   }
-  const head = "<thead><tr><th style='width:13%'>Date</th><th style='width:18%'>Rota Lead</th><th class='c' style='width:15%'>Status</th>"
-    + "<th style='width:18%'>Secondary</th><th class='c' style='width:15%'>Status</th><th style='width:21%'>Occasion</th></tr></thead>";
+  const head = "<thead><tr><th style='width:15%'>Date</th><th style='width:20%'>Rota Lead</th><th class='c' style='width:11%'>Status</th>"
+    + "<th style='width:21%'>Secondary</th><th class='c' style='width:11%'>Status</th><th style='width:22%'>Occasion</th></tr></thead>";
   const title = esc(config.fullName || config.orgName || "");
   const appUrl = window.location.origin + window.location.pathname;
 
@@ -5499,10 +5499,10 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     h += "<div class='page'>";
     if (i === 0) h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
       + "<div><div class='org'>" + title + "</div><div class='sub'>Rota schedule · January – December " + year + "</div></div>"
-      + "<div class='sub' style='margin-left:auto;text-align:right'>" + counts.ok + " confirmed · " + counts.tbc + " to be confirmed · " + counts.done + " completed</div></div>";
+      + "<div class='sub' style='margin-left:auto;text-align:right'>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
     else h += "<div class='cont'>" + title + " — Rota schedule " + year + " (continued)</div>";
     h += "<table>" + head + "<tbody>" + (pg.join("") || "<tr><td colspan='6' class='c'>No rota weeks for " + year + "</td></tr>") + "</tbody></table>";
-    if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>To be confirmed — still to be filled</span><span style='background:#475569;color:#fff'>Rota Completed — week is over</span><span>★ Special occasion</span></div>"
+    if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — To be confirmed</span><span style='background:#475569;color:#fff'>Done — Rota Completed</span><span>★ Special occasion</span></div>"
       + "<div class='swapnote'>🔁 <b>Need to swap your week?</b> Log in to the app" + (appUrl ? " (" + esc(appUrl) + ")" : "") + " and request a swap from <b>Volunteer → My Requests</b>.</div>";
     h += "<div class='foot'><span>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) + "</span><span>Page " + (i + 1) + " of " + pages.length + "</span></div></div>";
   });
