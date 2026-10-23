@@ -1163,7 +1163,7 @@ function Dashboard({ allSlots, rotas, members, activities, config, setTab, spons
           (area.donations||[])
             .filter(don => (don.rotaDates||[]).includes(nextDateStr))
             .map(don => ({ area: area.name, donor: don.donor, amount: don.amount }))
-        );
+        ).concat(servicePaidOn(rotaSheets, nextDateStr));
         const prasadhamProvider = (function(){
           var pid = r.prasadhamId;
           var pv = pid ? prasadham.find(function(p){return p.id===pid;}) : null;
@@ -5747,9 +5747,9 @@ function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, re
   // ── Edit / Form view ──
   if (!currentSheet) return <div className="text-slate-400 p-8 text-center">Sheet not found.</div>;
   // Rota Leads always get the mobile sheet; admins get it on a phone unless they ask for the full form
-  if (!isAdmin || (isPhone && !adminFullForm)) return <RotaSheetMobile sheet={currentSheet} upSheet={upSheet} onBack={backToList} archanaiReg={archanaiReg} donationReg={donationReg} expenseReg={expenseReg} upRegs={upRegs} registers={registers} showToast={showToast} cashInHand={cashInHand||{}} upCashInHand={upCashInHand} isAdmin={isAdmin}
+  if (!isAdmin || (isPhone && !adminFullForm)) return <RotaSheetMobile sevas={sevas||[]} sheet={currentSheet} upSheet={upSheet} onBack={backToList} archanaiReg={archanaiReg} donationReg={donationReg} expenseReg={expenseReg} upRegs={upRegs} registers={registers} showToast={showToast} cashInHand={cashInHand||{}} upCashInHand={upCashInHand} isAdmin={isAdmin}
     onFullForm={isAdmin ? () => setAdminFullForm(true) : null}/>;
-  return <RotaSheetForm onPhoneView={isPhone ? () => setAdminFullForm(false) : null} sheet={currentSheet} upSheet={upSheet} onBack={backToList} members={members} registers={registers} upRegs={upRegs} archanaiReg={archanaiReg} donationReg={donationReg} expenseReg={expenseReg} regEntries={regEntries} upRegEntries={upRegEntries} config={config} showToast={showToast} sevas={sevas||[]} sponsorships={sponsorships||[]} inventory={inventory||[]} cashInHand={cashInHand||{}} upCashInHand={upCashInHand} isAdmin={isAdmin}/>;
+  return <RotaSheetForm rotaSheets={rotaSheets} onPhoneView={isPhone ? () => setAdminFullForm(false) : null} sheet={currentSheet} upSheet={upSheet} onBack={backToList} members={members} registers={registers} upRegs={upRegs} archanaiReg={archanaiReg} donationReg={donationReg} expenseReg={expenseReg} regEntries={regEntries} upRegEntries={upRegEntries} config={config} showToast={showToast} sevas={sevas||[]} sponsorships={sponsorships||[]} inventory={inventory||[]} cashInHand={cashInHand||{}} upCashInHand={upCashInHand} isAdmin={isAdmin}/>;
 }
 
 
@@ -5782,7 +5782,16 @@ function orderMoney(r, price, dir) {
 }
 const NO_ORDER = { orderPay:"", orderCount:0 };
 // Donations also clear the amount and donor once paid, ready for the next donor
-const NO_DONATION = { ...NO_ORDER, perAmount:"", orderName:"", orderContact:"" };
+const NO_DONATION = { ...NO_ORDER, perAmount:"", orderName:"", orderContact:"", orderServiceId:"", orderServiceName:"", orderDate:"" };
+// The next receipt number a register will issue
+const nextRegNum = (r, prefix, count) => fmtRegNum(prefix, ((r||{}).firstNum || parseInt(((r||{}).start||"").replace(/\D/g,"")) + 1 || 1) + (parseInt(count)||0));
+// Donation record: what it was for (General or a service) and the date it's for
+const addDonation = (db, no, sheetDate) => addDonor(db, no)
+  .map((p, i, all) => i === all.length-1 ? { ...p, purpose: db.orderServiceName || "General", serviceId: db.orderServiceId || "", date: db.orderDate || sheetDate } : p);
+// Donors who paid for a service to be done on `date`, from every Rota Sheet's donation book
+const servicePaidOn = (sheets, date) => (sheets||[]).flatMap(sh => (sh.donationBook||{}).donors||[])
+  .filter(d => d.serviceId && d.date === date)
+  .map(d => ({ id: d.no+d.at, donor: d.name, area: d.purpose+" · service paid" }));
 // An email address, or a phone number with at least 7 digits
 const validContact = c => /^\S+@\S+\.\S+$/.test((c||"").trim()) || (c||"").replace(/\D/g,"").length >= 7;
 // Donations and expenses can only be taken once they have an amount above £0, a name and a contact
@@ -5864,10 +5873,21 @@ function SheetRegCard(props) {
       <div className={"px-4 py-3 flex items-center justify-between "+c.bg}>
         <div>
           <span className="font-bold text-slate-800 text-base">{icon} {label}</span>
-          {startNum && <span className="text-xs text-slate-400 ml-2">{startNum}{endNum&&endNum!==startNum?" → "+endNum:""}</span>}
+          {props.nextNum && !isClosed && <span className="text-xs text-slate-500 ml-2">Next: <b className="font-mono">{props.nextNum}</b></span>}
         </div>
         <div className={"text-lg font-black "+c.text}>£{total}</div>
       </div>
+      {/* Donations: General or one of the services (its price fills the amount) */}
+      {props.services && (
+        <div className="px-4 pb-2 flex items-center gap-2">
+          <span className="text-xs text-slate-500 w-20 flex-shrink-0">Donation for</span>
+          <select value={props.serviceId||""} disabled={isClosed||open} onChange={function(e){props.onService(props.services.find(function(sv){return sv.id===e.target.value;})||null);}}
+            className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100">
+            <option value="">General donation</option>
+            {props.services.map(function(sv){return <option key={sv.id} value={sv.id}>{sv.name} — £{sv.charge}</option>;})}
+          </select>
+        </div>
+      )}
       {/* Per-amount field (not for archana, which uses the Normal/Special price) */}
       {onPerAmt && (
         <div className="px-4 pb-2 flex items-center gap-2">
@@ -5883,6 +5903,13 @@ function SheetRegCard(props) {
             placeholder={nameLabel} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100"/>
           <input value={donor.contact||""} onChange={function(e){onDonor("orderContact",e.target.value);}} disabled={isClosed||open}
             placeholder="Email or phone *" inputMode="email" className={"w-full border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100 "+(donor.contact&&!validContact(donor.contact)?"border-red-300":"border-slate-200")}/>
+          {props.donationDate !== undefined && (
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">{props.serviceId ? "Service date *" : "Date *"}</span>
+              <input type="date" value={props.donationDate} onChange={function(e){onDonor("orderDate",e.target.value);}} disabled={isClosed||open}
+                className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100"/>
+            </label>
+          )}
           {expense && (
             <>
               <input value={expense.purpose||""} onChange={function(e){onDonor("orderPurpose",e.target.value);}} disabled={isClosed||open}
@@ -5932,7 +5959,7 @@ function SheetRegCard(props) {
           </button>
         </div>
       )}
-      <div className="px-4 pb-2 text-xs text-slate-500">Today so far: <b>{count}</b> {startNum && endNum && count>0 ? "("+startNum+" → "+endNum+")" : ""}</div>
+      <div className="px-4 pb-2 text-xs text-slate-500">Today so far: <b>{count}</b></div>
       {(props.donors||[]).length > 0 && (
         <div className="px-4 pb-2 space-y-0.5">
           {props.donors.map(function(d){return (
@@ -5961,7 +5988,7 @@ function SheetRegCard(props) {
   );
 }
 
-function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, expenseReg, upRegs, registers, showToast, cashInHand, upCashInHand, isAdmin, onFullForm }) {
+function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, expenseReg, upRegs, registers, showToast, cashInHand, upCashInHand, isAdmin, onFullForm, sevas=[] }) {
   const [s, setS] = React.useState(sheet);
   const isClosed = s.status === "closed";
 
@@ -6021,7 +6048,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
     var firstNum = db.firstNum || parseInt((db.start||"").replace(/\D/g,"")+1)||1;
     var newCnt = (parseInt(db.count||0))+1;
     var newEnd = fmtRegNum(prefix,firstNum+newCnt-1);
-    up({donationBook:{...db,count:newCnt,end:newEnd,firstNum,donors:addDonor(db,newEnd),...orderMoney(db,parseFloat(db.perAmount||0),1)}});
+    up({donationBook:{...db,count:newCnt,end:newEnd,firstNum,donors:addDonation(db,newEnd,s.date),...orderMoney(db,parseFloat(db.perAmount||0),1)}});
   };
   var decrDon = function() {
     if (isClosed) return;
@@ -6125,6 +6152,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         label="Archana Tickets" icon="🎟️" color="indigo"
         count={at.ticketCount||0} total={at.amount||"0.00"}
         orderPay={at.orderPay} orderCount={at.orderCount} price={at.dayType==="special"?5:3}
+        nextNum={nextRegNum(at, archanaiReg ? (archanaiReg.prefix||"A") : "A", at.ticketCount)}
         startNum={at.start} endNum={at.end}
         cash={at.cashAmount||"0.00"} sumup={at.sumupAmount||"0.00"} online={at.onlineAmount||"0.00"}
         onIncr={issueArch} onDecr={undoArch}
@@ -6146,6 +6174,9 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         label="Donations" icon="📖" color="emerald"
         count={parseInt(db.count||0)} total={db.amount||"0.00"}
         orderPay={db.orderPay} orderCount={db.orderCount} price={db.perAmount} perAmt={db.perAmount||""}
+        nextNum={nextRegNum(db, donationReg ? (donationReg.prefix||"D") : "D", db.count)}
+        services={sevas} serviceId={db.orderServiceId} donationDate={db.orderDate||s.date}
+        onService={function(sv){up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",perAmount:sv?sv.charge:db.perAmount}});}}
         startNum={db.start} endNum={db.end}
         cash={db.cashAmount||"0.00"} sumup={db.sumupAmount||"0.00"} online={db.onlineAmount||"0.00"}
         onIncr={incrDon} onDecr={decrDon}
@@ -6162,6 +6193,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         label="Expenses" icon="🧾" color="amber"
         count={parseInt(ev.count||0)} total={ev.amount||"0.00"}
         orderPay={ev.orderPay} orderCount={ev.orderCount} price={ev.perAmount} perAmt={ev.perAmount||""}
+        nextNum={nextRegNum(ev, expenseReg ? (expenseReg.prefix||"E") : "E", ev.count)}
         startNum={ev.start} endNum={ev.end}
         cash={ev.cashAmount||"0.00"} sumup={ev.sumupAmount||"0.00"} online={ev.onlineAmount||"0.00"}
         onIncr={incrExp} onDecr={decrExp}
@@ -6319,7 +6351,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
   );
 }
 
-function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers, upRegs, archanaiReg, donationReg, expenseReg, regEntries, upRegEntries, config, showToast, sevas, sponsorships, inventory, cashInHand, upCashInHand, isAdmin }) {
+function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, members, registers, upRegs, archanaiReg, donationReg, expenseReg, regEntries, upRegEntries, config, showToast, sevas, sponsorships, inventory, cashInHand, upCashInHand, isAdmin }) {
   const [s, setS] = useState(sheet);
 
   const isClosed = s.status === "closed";
@@ -6395,7 +6427,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
     const firstNum = db.firstNum || parseInt((db.start||"").replace(/\D/g,"")) + 1 || 1;
     const newCnt   = (parseInt(db.count||0)) + 1;
     const newEnd   = fmtRegNum(prefix, firstNum + newCnt - 1);
-    up({ donationBook: { ...db, count: newCnt, end: newEnd, firstNum, donors: addDonor(db, newEnd), ...orderMoney(db, parseFloat(db.perAmount||0), 1) } });
+    up({ donationBook: { ...db, count: newCnt, end: newEnd, firstNum, donors: addDonation(db, newEnd, s.date), ...orderMoney(db, parseFloat(db.perAmount||0), 1) } });
   };
   const decrDonation = () => {
     if (s.status === "closed") return;
@@ -6484,7 +6516,8 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
   const calcSumupTotal = () => {
     const arc = parseFloat(s.archanaTickets?.sumupAmount||0);
     const don = parseFloat(s.donationBook?.sumupAmount||0);
-    return (arc + don).toFixed(2);
+    const exp = parseFloat(s.expenseVouchers?.sumupAmount||0);
+    return (arc + don - exp).toFixed(2);
   };
 
   // Auto-computed Online total = archana online + donation online + expense online
@@ -6652,7 +6685,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                   (area.donations||[])
                     .filter(don => (don.rotaDates||[]).includes(sheetDate))
                     .map(don => ({ id: don.id, donor: don.donor, area: area.name }))
-                );
+                ).concat(servicePaidOn(rotaSheets, sheetDate));
                 const activeServices = (sevas||[]).filter(sv => {
                   // Services booked against this sheet date
                   return (s.sevaBookings||[]).some(b => b.sevaId === sv.id);
@@ -6676,31 +6709,6 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                             rows={1} placeholder="No linked sponsorships — type manually if needed"
                             className="w-full border border-slate-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none bg-white"/>
                         )}
-                      </div>
-                    </div>
-                    {/* Services row */}
-                    <div className="flex items-start gap-2">
-                      <span className="font-bold w-20 md:w-28 flex-shrink-0 pt-1 italic text-sm">Services</span>
-                      <div className="flex-1">
-                        {(sevas||[]).length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {(sevas||[]).map(sv => {
-                              const booked = (s.sevaBookings||[]).find(b => b.sevaId === sv.id);
-                              return (
-                                <label key={sv.id} className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg border cursor-pointer transition-colors
-                                  ${booked ? "bg-violet-50 border-violet-300 text-violet-800" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
-                                  <input type="checkbox" className="accent-violet-600" checked={!!booked} disabled={isClosed}
-                                    onChange={e => {
-                                      const cur = s.sevaBookings||[];
-                                      const next = e.target.checked ? [...cur, {sevaId:sv.id, name:sv.name, charge:sv.charge}] : cur.filter(b=>b.sevaId!==sv.id);
-                                      up({sevaBookings: next});
-                                    }}/>
-                                  {sv.name} <span className="text-violet-500">£{sv.charge}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : <span className="text-xs text-slate-400 italic">No services configured — add in Master Data</span>}
                       </div>
                     </div>
                     {/* Inventory low-stock warning */}
@@ -6729,16 +6737,15 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
           {/* ── Main table + Denomination side-by-side ── */}
           <div className="flex flex-col lg:flex-row gap-3 items-stretch">
 
-            {/* LEFT: Register card — 7 cols: Type(3) Start End Count Pay Amount */}
+            {/* LEFT: Register card — Type, Next No., Count, Pay, Amount */}
             <p className="md:hidden -mb-1 text-xs text-slate-400">Swipe the table sideways for count, pay and amount →</p>
             <div className="flex-1 min-w-0 rounded-xl border border-slate-200 overflow-x-auto">
               <div className="min-w-[600px] flex flex-col h-full">
 
               {/* Card header */}
-              <div className="grid bg-slate-700 text-white text-xs font-semibold uppercase tracking-wide" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
+              <div className="grid bg-slate-700 text-white text-xs font-semibold uppercase tracking-wide" style={{gridTemplateColumns:"3fr 1.2fr 1fr 1.2fr 1.2fr"}}>
                 <div className="px-3 py-2">Type</div>
-                <div className="px-2 py-2 text-center">Start</div>
-                <div className="px-2 py-2 text-center">End</div>
+                <div className="px-2 py-2 text-center">Next No.</div>
                 <div className="px-2 py-2 text-center">Count</div>
                 <div className="px-2 py-2 text-center">Pay</div>
                 <div className="px-2 py-2 text-center">Amount £</div>
@@ -6750,7 +6757,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                 const hasCih = parseFloat(cihTotal) > 0;
                 const isEmpty = !s.openingBalance || s.openingBalance === "";
                 return (
-                  <div className="grid items-center border-b border-slate-100 bg-amber-50 bg-opacity-60" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
+                  <div className="grid items-center border-b border-slate-100 bg-amber-50 bg-opacity-60" style={{gridTemplateColumns:"3fr 1.2fr 1fr 1.2fr 1.2fr"}}>
                     <div className="px-3 py-2.5">
                       <div className="font-semibold text-sm text-slate-700">Opening Balance</div>
                       <div className="text-xs text-slate-400 mt-0.5">Cashbox from previous session</div>
@@ -6773,7 +6780,6 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                     <div className="px-2 py-2.5"></div>
                     <div className="px-2 py-2.5"></div>
                     <div className="px-2 py-2.5"></div>
-                    <div className="px-2 py-2.5"></div>
                     <div className="px-2 py-2.5">
                       <input type="text" inputMode="decimal" value={s.openingBalance||""} disabled={isClosed}
                         onChange={e=>up({openingBalance:e.target.value})}
@@ -6783,87 +6789,8 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                 );
               })()}
 
-              {/* Donation Book row */}
-              <div className="grid items-center border-b border-slate-100 bg-blue-50 bg-opacity-30" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
-                <div className="px-3 py-3">
-                  <div className="font-semibold text-sm text-blue-800">📖 Donation Book</div>
-                  {!isClosed && (() => {
-                    const db = s.donationBook||{};
-                    const locked = db.orderCount > 0;
-                    const cls = "w-full border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:bg-slate-100 disabled:text-slate-500";
-                    return (
-                      <div className="mt-1.5 space-y-1">
-                        <input value={db.orderName||""} disabled={locked} placeholder="Donor name *"
-                          onChange={e=>up({donationBook:{...db,orderName:e.target.value}})} className={cls}/>
-                        <input value={db.orderContact||""} disabled={locked} placeholder="Email or phone *"
-                          onChange={e=>up({donationBook:{...db,orderContact:e.target.value}})} className={cls}/>
-                      </div>
-                    );
-                  })()}
-                  {(s.donationBook?.donors||[]).length > 0 && (
-                    <div className="mt-1.5 text-xs text-slate-500 space-y-0.5">
-                      {s.donationBook.donors.map(d => <div key={d.no}>{d.no} · {d.name} · £{d.amount} · {PAY_LABEL[d.pay]||d.pay}</div>)}
-                    </div>
-                  )}
-                </div>
-                <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-blue-600 text-sm bg-blue-100 bg-opacity-60 px-1.5 py-0.5 rounded">{s.donationBook?.start||"—"}</span>
-                </div>
-                <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-blue-700 text-sm">{s.donationBook?.end||s.donationBook?.start||"—"}</span>
-                </div>
-                <div className="px-2 py-3 text-center">
-                  {!isClosed ? (
-                    <div className="flex items-center justify-center gap-0.5">
-                      <button onClick={decrDonation} disabled={!(s.donationBook?.orderCount>0)} className="disabled:opacity-30 w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs flex items-center justify-center flex-shrink-0">−</button>
-                      <span className="font-bold text-slate-800 w-6 text-center text-sm">{s.donationBook?.count||0}</span>
-                      <button onClick={incrDonation} disabled={!s.donationBook?.orderPay||!donationReady(s.donationBook)} title={!donationReady(s.donationBook)?"Enter the amount, donor name and email or phone first":s.donationBook?.orderPay?"":"Choose Cash, Card or Online first"} className="disabled:opacity-30 w-5 h-5 rounded bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center flex-shrink-0">＋</button>
-                    </div>
-                  ) : (
-                    <span className="font-bold text-blue-700 text-sm">{s.donationBook?.count||0}</span>
-                  )}
-                </div>
-                <div className="px-2 py-3">
-{!isClosed ? (() => {
-                    const r = s.donationBook||{};
-                    const open = (r.orderCount||0) > 0;
-                    return (
-                      <div className="space-y-1">
-                        <select value={r.orderPay||""} disabled={open||!donationReady(r)} onChange={e=>up({donationBook:{...r,orderPay:e.target.value}})}
-                          title={open ? "Finish this order before changing the payment type" : ""}
-                          className={`w-full border rounded-lg px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200 ${open?"bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200":r.orderPay?"bg-white border-slate-200":"bg-white border-red-300"}`}>
-                          <option value="">Choose…</option>
-                          <option value="cash">💵 Cash</option>
-                          <option value="sumup">💳 Card</option>
-                          <option value="online">🌐 Online</option>
-                        </select>
-                        {open && (
-                          <button onClick={()=>up({donationBook:{...r,...NO_DONATION}})}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-1 py-1 text-xs font-bold">✓ Taken ({r.orderCount})</button>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                    <div className="text-xs text-slate-400 text-center">—</div>
-                  )}
-                </div>
-                <div className="px-2 py-3">
-                  {!isClosed ? (
-                    <input type="text" inputMode="decimal" value={s.donationBook?.perAmount||""} disabled={s.donationBook?.orderCount>0}
-                      onChange={e=>up({donationBook:{...s.donationBook, perAmount:e.target.value}})}
-                      placeholder="£ amount *"
-                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-blue-200 bg-white disabled:bg-slate-100"/>
-                  ) : (
-                    <div className="text-right">
-                      <div className="font-bold text-blue-700 text-sm">£{s.donationBook?.amount||"0.00"}</div>
-                      <div className="text-xs text-slate-400">{s.donationBook?.payType||"cash"}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Archana Tickets row */}
-              <div className="grid items-center border-b border-slate-100 bg-violet-50 bg-opacity-40" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
+              <div className="grid items-center border-b border-slate-100 bg-violet-50 bg-opacity-40" style={{gridTemplateColumns:"3fr 1.2fr 1fr 1.2fr 1.2fr"}}>
                 <div className="px-3 py-3">
                   <div className="font-semibold text-sm text-violet-800">🎟 Archana Tickets</div>
                   {!isClosed ? (
@@ -6883,10 +6810,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                   )}
                 </div>
                 <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-violet-600 text-sm bg-violet-100 bg-opacity-60 px-1.5 py-0.5 rounded">{s.archanaTickets?.start||"—"}</span>
-                </div>
-                <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-violet-700 text-sm">{s.archanaTickets?.end||s.archanaTickets?.start||"—"}</span>
+                  <span className="font-mono font-bold text-violet-700 text-sm bg-violet-100 bg-opacity-60 px-1.5 py-0.5 rounded">{isClosed ? (s.archanaTickets?.end||"—") : nextRegNum(s.archanaTickets, archanaiReg ? archanaiReg.prefix : "A", s.archanaTickets?.ticketCount)}</span>
                 </div>
                 <div className="px-2 py-3 text-center">
                   {!isClosed ? (
@@ -6938,104 +6862,12 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                 </div>
               </div>
 
-              {/* Expense Vouchers row */}
-              <div className="grid items-center border-b border-slate-100 bg-amber-50 bg-opacity-30" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
-                <div className="px-3 py-3">
-                  <div className="font-semibold text-sm text-amber-800">🧾 Expense Vouchers</div>
-                  {!isClosed && (() => {
-                    const ev = s.expenseVouchers||{};
-                    const locked = ev.orderCount > 0;
-                    const cls = "w-full border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:bg-slate-100 disabled:text-slate-500";
-                    return (
-                      <div className="mt-1.5 space-y-1">
-                        <input value={ev.orderName||""} disabled={locked} placeholder="Paid to (name or company) *"
-                          onChange={e=>up({expenseVouchers:{...ev,orderName:e.target.value}})} className={cls}/>
-                        <input value={ev.orderContact||""} disabled={locked} placeholder="Email or phone *"
-                          onChange={e=>up({expenseVouchers:{...ev,orderContact:e.target.value}})} className={cls}/>
-                        <input value={ev.orderPurpose||""} disabled={locked} placeholder="What was it for? *"
-                          onChange={e=>up({expenseVouchers:{...ev,orderPurpose:e.target.value}})} className={cls}/>
-                        <label className="flex items-center gap-1.5 text-xs text-slate-500">Date of expense *
-                          <input type="date" value={ev.orderDate||""} disabled={locked} max={new Date().toISOString().slice(0,10)}
-                            onChange={e=>up({expenseVouchers:{...ev,orderDate:e.target.value}})} className={cls+" flex-1"}/>
-                        </label>
-                        {locked && (
-                          <div>
-                            <div className="text-xs font-semibold text-slate-500 mt-1">✍️ Receiver's signature *</div>
-                            <SignaturePad value={ev.orderSig} onChange={v=>up({expenseVouchers:{...ev,orderSig:v}})}/>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {(s.expenseVouchers?.payees||[]).length > 0 && (
-                    <div className="mt-1.5 text-xs text-slate-500 space-y-0.5">
-                      {s.expenseVouchers.payees.map(d => <div key={d.no} className="flex items-center gap-1.5">{d.no} · {d.name} · {d.contact} · {d.purpose} · {d.date && new Date(d.date).toLocaleDateString("en-GB")} · £{d.amount} · {PAY_LABEL[d.pay]||d.pay}{d.sig && <img src={d.sig} alt="signed" className="h-5 border border-slate-200 rounded bg-white"/>}</div>)}
-                    </div>
-                  )}
-                </div>
-                <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-amber-600 text-sm bg-amber-100 bg-opacity-60 px-1.5 py-0.5 rounded">{s.expenseVouchers?.start||"—"}</span>
-                </div>
-                <div className="px-2 py-3 text-center">
-                  <span className="font-mono font-bold text-amber-700 text-sm">{s.expenseVouchers?.end||s.expenseVouchers?.start||"—"}</span>
-                </div>
-                <div className="px-2 py-3 text-center">
-                  {!isClosed ? (
-                    <div className="flex items-center justify-center gap-0.5">
-                      <button onClick={decrExpense} disabled={!(s.expenseVouchers?.orderCount>0)} className="disabled:opacity-30 w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs flex items-center justify-center flex-shrink-0">−</button>
-                      <span className="font-bold text-slate-800 w-6 text-center text-sm">{s.expenseVouchers?.count||0}</span>
-                      <button onClick={incrExpense} disabled={!s.expenseVouchers?.orderPay||!expenseReady(s.expenseVouchers)} title={!expenseReady(s.expenseVouchers)?"Fill in amount, paid to, email or phone, what it was for and the date first":s.expenseVouchers?.orderPay?"":"Choose Cash, Card or Online first"} className="disabled:opacity-30 w-5 h-5 rounded bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center justify-center flex-shrink-0">＋</button>
-                    </div>
-                  ) : (
-                    <span className="font-bold text-amber-700 text-sm">{s.expenseVouchers?.count||0}</span>
-                  )}
-                </div>
-                <div className="px-2 py-3">
-{!isClosed ? (() => {
-                    const r = s.expenseVouchers||{};
-                    const open = (r.orderCount||0) > 0;
-                    return (
-                      <div className="space-y-1">
-                        <select value={r.orderPay||""} disabled={open||!expenseReady(r)} onChange={e=>up({expenseVouchers:{...r,orderPay:e.target.value}})}
-                          title={open ? "Finish this order before changing the payment type" : ""}
-                          className={`w-full border rounded-lg px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-200 ${open?"bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200":r.orderPay?"bg-white border-slate-200":"bg-white border-red-300"}`}>
-                          <option value="">Choose…</option>
-                          <option value="cash">💵 Cash</option>
-                          <option value="sumup">💳 Card</option>
-                          <option value="online">🌐 Online</option>
-                        </select>
-                        {open && (
-                          <button onClick={()=>up({expenseVouchers:takeExpense(r)})} disabled={!r.orderSig} title={r.orderSig?"":"The receiver signs first"}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-1 py-1 text-xs font-bold disabled:opacity-40">✓ Paid ({r.orderCount})</button>
-                        )}
-                      </div>
-                    );
-                  })() : (
-                    <div className="text-xs text-slate-400 text-center">—</div>
-                  )}
-                </div>
-                <div className="px-2 py-3">
-                  {!isClosed ? (
-                    <input type="text" inputMode="decimal" value={s.expenseVouchers?.perAmount||""} disabled={s.expenseVouchers?.orderCount>0}
-                      onChange={e=>up({expenseVouchers:{...s.expenseVouchers, perAmount:e.target.value}})}
-                      placeholder="£ amount *"
-                      className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-amber-200 bg-white disabled:bg-slate-100"/>
-                  ) : (
-                    <div className="text-right">
-                      <div className="font-bold text-amber-700 text-sm">£{s.expenseVouchers?.amount||"0.00"}</div>
-                      <div className="text-xs text-slate-400">{s.expenseVouchers?.payType||"cash"}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Hundi row */}
-              <div className="grid items-center border-b border-slate-100" style={{gridTemplateColumns:"3fr 1fr 1fr 1fr 1.2fr 1.2fr"}}>
+              <div className="grid items-center border-b border-slate-100" style={{gridTemplateColumns:"3fr 1.2fr 1fr 1.2fr 1.2fr"}}>
                 <div className="px-3 py-3">
                   <div className="font-semibold text-sm text-slate-700">🏺 Hundi</div>
                   <div className="text-xs text-slate-400 mt-0.5">Collection box</div>
                 </div>
-                <div className="px-2 py-3"></div>
                 <div className="px-2 py-3"></div>
                 <div className="px-2 py-3"></div>
                 <div className="px-2 py-3"></div>
@@ -7157,9 +6989,10 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
 
                     {/* SumUp section */}
                     <div className="px-3 py-2.5 space-y-1 bg-white">
-                      <div className="font-bold text-slate-600 mb-1.5">💳 SumUp</div>
+                      <div className="font-bold text-slate-600 mb-1.5">💳 Card</div>
                       <div className="flex justify-between text-slate-500"><span>Archanai</span><span>£{parseFloat(s.archanaTickets?.sumupAmount||0).toFixed(2)}</span></div>
                       <div className="flex justify-between text-slate-500"><span>Donation</span><span>£{parseFloat(s.donationBook?.sumupAmount||0).toFixed(2)}</span></div>
+                      <div className="flex justify-between text-slate-500"><span>Expenses</span><span className="text-red-500">−£{parseFloat(s.expenseVouchers?.sumupAmount||0).toFixed(2)}</span></div>
                       <div className="flex justify-between pt-1 border-t border-slate-200 font-bold">
                         <span className="text-slate-600">Total</span>
                         <span className="text-slate-800">£{sumupCalc.toFixed(2)}</span>
@@ -7192,6 +7025,45 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
 
 
           </div>
+
+          {/* ── Donations and Expenses: details first, then payment ── */}
+          {(() => {
+            const db = s.donationBook||{}, ev = s.expenseVouchers||{};
+            return (
+              <div className="grid md:grid-cols-2 gap-4 mt-4 items-start">
+                <SheetRegCard isClosed={isClosed}
+                  label="Donations" icon="📖" color="emerald"
+                  count={parseInt(db.count||0)} total={db.amount||"0.00"}
+                  orderPay={db.orderPay} orderCount={db.orderCount} price={db.perAmount} perAmt={db.perAmount||""}
+                  nextNum={nextRegNum(db, donationReg ? (donationReg.prefix||"D") : "D", db.count)}
+                  services={sevas||[]} serviceId={db.orderServiceId} donationDate={db.orderDate||s.date}
+                  onService={sv=>up({donationBook:{...db,orderServiceId:sv?sv.id:"",orderServiceName:sv?sv.name:"",perAmount:sv?sv.charge:db.perAmount}})}
+                  cash={db.cashAmount||"0.00"} sumup={db.sumupAmount||"0.00"} online={db.onlineAmount||"0.00"}
+                  onIncr={incrDonation} onDecr={decrDonation}
+                  onPayType={p=>up({donationBook:{...db,orderPay:p}})}
+                  onPerAmt={v=>up({donationBook:{...db,perAmount:v}})}
+                  onTaken={()=>up({donationBook:{...db,...NO_DONATION}})}
+                  amtLabel="Amount £" donors={db.donors}
+                  donor={{name:db.orderName, contact:db.orderContact}}
+                  onDonor={(f,v)=>up({donationBook:{...db,[f]:v}})}/>
+                <SheetRegCard isClosed={isClosed}
+                  label="Expenses" icon="🧾" color="amber"
+                  count={parseInt(ev.count||0)} total={ev.amount||"0.00"}
+                  orderPay={ev.orderPay} orderCount={ev.orderCount} price={ev.perAmount} perAmt={ev.perAmount||""}
+                  nextNum={nextRegNum(ev, expenseReg ? (expenseReg.prefix||"E") : "E", ev.count)}
+                  cash={ev.cashAmount||"0.00"} sumup={ev.sumupAmount||"0.00"} online={ev.onlineAmount||"0.00"}
+                  onIncr={incrExpense} onDecr={decrExpense}
+                  onPayType={p=>up({expenseVouchers:{...ev,orderPay:p}})}
+                  onPerAmt={v=>up({expenseVouchers:{...ev,perAmount:v}})}
+                  onTaken={()=>up({expenseVouchers:takeExpense(ev)})}
+                  amtLabel="Amount £" nameLabel="Paid to (name or company) *" donors={ev.payees}
+                  donor={{name:ev.orderName, contact:ev.orderContact}}
+                  expense={{purpose:ev.orderPurpose, date:ev.orderDate}}
+                  onDonor={(f,v)=>up({expenseVouchers:{...ev,[f]:v}})}
+                  sig={ev.orderSig} onSig={v=>up({expenseVouchers:{...ev,orderSig:v}})}/>
+              </div>
+            );
+          })()}
 
           {/* ── Bottom strip: 3 aligned columns ── */}
           <div className="flex flex-col md:flex-row gap-4 items-stretch mt-4 pt-4 border-t border-slate-200">
