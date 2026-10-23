@@ -5465,7 +5465,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
 
   // Pages are laid out here rather than left to the browser, so every page is a complete,
   // bordered table with its own headings: page 1 has the title block, later pages a short one.
-  const FIRST = 42, REST = 44;
+  const FIRST = 42, REST = 43;
   const pages = [];
   for (let i = 0; i < rows.length || pages.length === 0; ) {
     const n = pages.length === 0 ? FIRST : REST;
@@ -5474,11 +5474,12 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   const head = "<thead><tr><th style='width:15%'>Date</th><th style='width:20%'>Rota Lead</th><th class='c' style='width:11%'>Status</th>"
     + "<th style='width:21%'>Secondary</th><th class='c' style='width:11%'>Status</th><th style='width:22%'>Occasion</th></tr></thead>";
   const title = esc(config.fullName || config.orgName || "");
+  const appUrl = window.location.origin + window.location.pathname;
 
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
-    + "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}"
+    + "@page{size:A4;margin:12mm}*{box-sizing:border-box;margin:0;padding:0}"
     + "body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#e2e8f0}"
-    + ".page{width:210mm;height:297mm;padding:16mm 14mm 18mm;position:relative;background:#fff;overflow:hidden;margin:0 auto 6mm;page-break-after:always;break-after:page}"
+    + ".page{width:186mm;padding-top:4mm;background:#fff;page-break-after:always;break-after:page}"
     + ".page:last-child{page-break-after:auto;break-after:auto}"
     + ".hd{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1e1b4b;padding-bottom:3mm;margin-bottom:5mm}"
     + ".hd img{height:14mm;width:14mm;object-fit:contain}.org{font-size:16px;font-weight:900;color:#1e1b4b}.sub{font-size:10.5px;color:#334155}"
@@ -5489,8 +5490,10 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     + ".st{font-weight:bold;text-align:center}.ok{color:#14532d;background:#bbf7d0}.tbc{color:#991b1b;background:#fecaca}.tbcname{color:#991b1b;font-weight:bold}"
     + "tr.past td{background:#94a3b8;color:#0f172a}tr.past td.done{background:#475569;color:#fff}"
     + ".key{display:flex;gap:10px;margin-top:4mm;font-size:10px;color:#0f172a}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
-    + ".foot{position:absolute;left:14mm;right:14mm;bottom:8mm;display:flex;justify-content:space-between;font-size:9.5px;color:#334155;border-top:1px solid #94a3b8;padding-top:2mm}"
-    + "@media print{body{background:#fff}.page{margin:0}.noprint{display:none!important}}"
+    + ".foot{display:flex;justify-content:space-between;font-size:9.5px;color:#334155;border-top:1px solid #94a3b8;padding-top:2mm;margin-top:5mm}"
+    + ".swapnote{margin-top:4mm;font-size:10.5px;color:#1e1b4b;border:1px solid #c7d2fe;background:#eef2ff;border-radius:4px;padding:2mm 3mm}"
+    + "@media screen{body{padding:8mm 0}.page{margin:0 auto 8mm;padding:12mm;width:210mm;box-shadow:0 1px 4px #0003}}"
+    + "@media print{body{background:#fff}.noprint{display:none!important}}"
     + "</style></head><body>";
   pages.forEach((pg, i) => {
     h += "<div class='page'>";
@@ -5499,7 +5502,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
       + "<div class='sub' style='margin-left:auto;text-align:right'>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
     else h += "<div class='cont'>" + title + " — Rota schedule " + year + " (continued)</div>";
     h += "<table>" + head + "<tbody>" + (pg.join("") || "<tr><td colspan='6' class='c'>No rota weeks for " + year + "</td></tr>") + "</tbody></table>";
-    if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#475569;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
+    if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#475569;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>"
+      + "<div class='swapnote'>🔁 <b>Need to swap your week?</b> Log in to the app" + (appUrl ? " (" + esc(appUrl) + ")" : "") + " and request a swap from <b>Volunteer → My Requests</b>.</div>";
     h += "<div class='foot'><span>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) + "</span><span>Page " + (i + 1) + " of " + pages.length + "</span></div></div>";
   });
   h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
