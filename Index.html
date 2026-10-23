@@ -5130,7 +5130,8 @@ function SwapRequestForm({ rotas, allSlots, members, generalOffers, upGeneralOff
   if (myWeeks.length === 0 && mine.length === 0) return null;
 
   const [slotKey, role] = pick ? pick.split("|") : ["", ""];
-  const others = role ? eligibleFor(members, role).filter(m => m.id !== me) : [];
+  // Only people who have a week of their own in this role to swap back
+  const others = role ? eligibleFor(members, role).filter(m => m.id !== me && upcoming.some(s => s.key !== slotKey && inRole(rotas[s.key], role, m.id))) : [];
   // Their weeks: weeks where the chosen person has the same role (or any week, if no one chosen)
   const theirWeeks = upcoming.filter(s => s.key !== slotKey && (!withId || inRole(rotas[s.key], role, withId)));
   const getName = id => (members.find(m => m.id === id)||{}).name || "—";
@@ -5381,15 +5382,17 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
                   <select value={r.toId ? r.toId+"|"+(r.pairKey||"") : ""} onChange={e=>pickPerson(i, e.target.value)} disabled={!r.slotKey || r.auto} className={sel}
                     title={r.auto ? "Filled in by the swap above" : ""}>
                     <option value="">New {SWAP_ROLE[role]}…</option>
+                    {/* Proper swaps only: each person with their own weeks to swap for */}
                     {people.filter(m => m.id !== current(r.slotKey, r.fromId)).map(m => {
                       const theirs = weeksOf(m.id).filter(s => s.key !== r.slotKey);
+                      if (theirs.length === 0) return null;
                       return (
-                        <optgroup key={m.id} label={m.name+(theirs.length ? " — "+theirs.length+" week"+(theirs.length>1?"s":"") : " — no weeks")}>
+                        <optgroup key={m.id} label={m.name+" — "+theirs.length+" week"+(theirs.length>1?"s":"")}>
                           {theirs.map(s => <option key={s.key} value={m.id+"|"+s.key}>{m.name} ⇄ swap for {dayText(s)}</option>)}
-                          <option value={m.id+"|"}>{m.name} — just takes this week</option>
                         </optgroup>
                       );
                     })}
+                    {r.toId && !r.pairKey && <option value={r.toId+"|"}>{getName(r.toId)}</option>}
                   </select>
                   <button onClick={()=>setRows(rows.length > 1 ? rows.filter((_, j) => j !== i && !(rows[j].auto && rows[j].pairOf === r.slotKey)) : [{ slotKey:"", fromId:"", toId:"" }])}
                     className="text-slate-400 hover:text-red-500 text-sm px-2" title="Remove this week">✕</button>
