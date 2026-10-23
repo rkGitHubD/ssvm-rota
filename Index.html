@@ -547,7 +547,7 @@ function App() {
         {subTab==="My Requests"  && <VolunteerRequests members={members} rotas={rotas} upRotas={upRotas} allSlots={allSlots} activities={activities} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} currentUser={currentUser} showToast={showToast}/>}
         {subTab==="Services"        && <VolunteerServices sevas={sevas}/>}
         {subTab==="Pooja Itinerary" && <VolunteerItinerary itineraries={itineraries}/>}
-        {subTab==="Master Data"  && <MasterData generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} members={members} upMembers={upMembers} specials={specials} upSpecials={upSpecials} activities={activities} upActs={upActs} registers={registers} upRegs={upRegs} regEntries={regEntries} showToast={showToast} rotas={rotas} upRotas={upRotas} allSlots={allSlots} cashInHand={cashInHand} upCashInHand={upCashInHand} sevas={sevas} upServices={upServices} sponsorships={sponsorships} upSponsorships={upSponsorships} inventory={inventory} upInventory={upInventory} rotaSheets={rotaSheets} itineraries={itineraries} upItineraries={upItineraries} prasadham={prasadham} upPrasadham={upPrasadham} priests={priests} upPriests={upPriests}/>}
+        {subTab==="Master Data"  && <MasterData config={config} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} members={members} upMembers={upMembers} specials={specials} upSpecials={upSpecials} activities={activities} upActs={upActs} registers={registers} upRegs={upRegs} regEntries={regEntries} showToast={showToast} rotas={rotas} upRotas={upRotas} allSlots={allSlots} cashInHand={cashInHand} upCashInHand={upCashInHand} sevas={sevas} upServices={upServices} sponsorships={sponsorships} upSponsorships={upSponsorships} inventory={inventory} upInventory={upInventory} rotaSheets={rotaSheets} itineraries={itineraries} upItineraries={upItineraries} prasadham={prasadham} upPrasadham={upPrasadham} priests={priests} upPriests={upPriests}/>}
         {subTab==="Rota Sheet"   && <RotaSheetTab rotaSheets={rotaSheets} upRotaSheets={upRotaSheets} members={members} registers={registers} upRegs={upRegs} regEntries={regEntries} upRegEntries={upRegEntries} rotas={rotas} config={config} allSlots={allSlots} showToast={showToast} sevas={sevas} sponsorships={sponsorships} inventory={inventory} cashInHand={cashInHand} upCashInHand={upCashInHand} isAdmin={isAdmin} priests={priests} prasadham={prasadham} currentUser={currentUser}/>}
         {subTab==="Settings"     && <Settings config={config} upConfig={upConfig} showToast={showToast}
     allData={{config,activities,members,rotas,specials,registers,regEntries,rotaSheets,generalOffers,cashInHand,sevas,sponsorships,inventory,itineraries,prasadham,priests}}/>}
@@ -4633,7 +4633,7 @@ const MD_SECTIONS = [
   { key:"priests",      label:"🔔 Priests",         desc:"Priests & fees" },
 ];
 
-function MasterData({ generalOffers=[], upGeneralOffers, members, upMembers, specials, upSpecials, activities, upActs, registers, upRegs, regEntries, showToast, rotas, upRotas, allSlots, cashInHand, upCashInHand, sevas, upServices, sponsorships, upSponsorships, inventory, upInventory, rotaSheets, itineraries, upItineraries, prasadham, upPrasadham, priests, upPriests }) {
+function MasterData({ config={}, generalOffers=[], upGeneralOffers, members, upMembers, specials, upSpecials, activities, upActs, registers, upRegs, regEntries, showToast, rotas, upRotas, allSlots, cashInHand, upCashInHand, sevas, upServices, sponsorships, upSponsorships, inventory, upInventory, rotaSheets, itineraries, upItineraries, prasadham, upPrasadham, priests, upPriests }) {
   const [section, setSection] = useState("members");
   return (
     <div className="space-y-5">
@@ -4650,7 +4650,7 @@ function MasterData({ generalOffers=[], upGeneralOffers, members, upMembers, spe
         ))}
       </div>
       {section==="members"      && <MDMembers     members={members} upMembers={upMembers} showToast={showToast}/>}
-      {section==="assignments"  && <MDAssignments members={members} rotas={rotas} upRotas={upRotas} allSlots={allSlots} showToast={showToast} specials={specials} upSpecials={upSpecials} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers}/>}
+      {section==="assignments"  && <MDAssignments members={members} rotas={rotas} upRotas={upRotas} allSlots={allSlots} showToast={showToast} specials={specials} upSpecials={upSpecials} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} config={config}/>}
       {section==="activities"   && <MDActivities  activities={activities} upActs={upActs} members={members} showToast={showToast}/>}
       {section==="registers"    && <MDRegisters   registers={registers} upRegs={upRegs} regEntries={regEntries} members={members} showToast={showToast}/>}
       {section==="cash"         && <MDCashInHand  cashInHand={cashInHand} upCashInHand={upCashInHand} rotaSheets={rotaSheets} showToast={showToast}/>}
@@ -5431,7 +5431,58 @@ function SwapPlanner({ members, rotas, upRotas, allSlots, generalOffers, upGener
   );
 }
 
-function MDAssignments({ members, rotas, upRotas, allSlots, showToast, specials, upSpecials, generalOffers=[], upGeneralOffers }) {
+// ─── Rota schedule for a year: one A4 page, scaled down to fit ───────────────
+// Status per role: Done (week is over), Confirmed (someone assigned) or TBC (nobody yet)
+function printRotaSchedule(year, { rotas = {}, members = [], specials = [], config = {} } = {}) {
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  const name = id => (members.find(m => m.id === id) || {}).name || "";
+  const today = new Date(); today.setHours(0,0,0,0);
+  const slots = [...getWeeksForYear(year), ...specials.filter(sp => new Date(sp.date).getFullYear() === year).map(sp => ({ ...sp, isSpecial:true }))]
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  const status = (done, who) => done ? "<td class='st done'>Done</td>" : who ? "<td class='st ok'>Confirmed</td>" : "<td class='st tbc'>TBC</td>";
+  let counts = { ok:0, tbc:0, done:0 };
+  const rowsHtml = slots.map(sl => {
+    const r = rotas[sl.key] || {};
+    const done = new Date(sl.date) < today;
+    const lead = name(r.lead), sec = (r.secondary || []).map(name).filter(Boolean).join(", ");
+    if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
+    const remarks = [sl.isSpecial ? "★ " + (sl.tag || sl.label || "Special") : "", r.notes || ""].filter(Boolean).join(" · ");
+    return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
+      + (sl.isSpecial ? " <b>★</b>" : "") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
+      + "<td>" + (esc(sec) || "—") + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
+  }).join("");
+
+  let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
+    + "@page{size:A4;margin:10mm}*{box-sizing:border-box;margin:0;padding:0}"
+    + "body{width:190mm;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#1e293b;background:#fff}"
+    + ".hd{display:flex;align-items:center;gap:8px;border-bottom:2px solid #3730a3;padding-bottom:5px;margin-bottom:6px}"
+    + ".hd img{height:36px;width:36px;object-fit:contain}.org{font-size:13px;font-weight:900;color:#1e1b4b}.sub{font-size:8.5px;color:#64748b}"
+    + "table{width:100%;border-collapse:collapse}th{background:#3730a3;color:#fff;font-size:8.5px;text-align:left;padding:3px 4px}"
+    + "td{padding:2.5px 4px;border-bottom:1px solid #e2e8f0;font-size:9px}"
+    + ".st{font-weight:bold;text-align:center;width:62px}.ok{color:#166534;background:#dcfce7}.tbc{color:#b91c1c;background:#fee2e2}"
+    + "tr.past td{background:#94a3b8;color:#f8fafc}tr.past td.done{background:#64748b;color:#fff}"
+    + ".key{display:flex;gap:10px;margin-top:6px;font-size:8.5px;color:#475569}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
+    + "@media print{.noprint{display:none!important}}"
+    + "</style></head><body>";
+  h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
+    + "<div><div class='org'>" + esc(config.fullName || config.orgName || "") + "</div>"
+    + "<div class='sub'>Rota schedule · January – December " + year + "</div></div>"
+    + "<div class='sub' style='margin-left:auto;text-align:right'>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })
+    + "<br/>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
+  h += "<table><tr><th>Date / Rota</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Remarks</th></tr>"
+    + (rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</table>";
+  h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#64748b;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
+  h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
+    + "<script>window.onload=function(){var h=document.body.scrollHeight,max=1040;if(h>max)document.body.style.zoom=(max/h).toFixed(3);setTimeout(function(){window.print();},300);};<\/script>"
+    + "</body></html>";
+  const w = window.open("", "_blank");
+  if (!w) return false;
+  w.document.write(h); w.document.close();
+  return true;
+}
+
+function MDAssignments({ members, rotas, upRotas, allSlots, showToast, specials, upSpecials, generalOffers=[], upGeneralOffers, config={} }) {
+  const [schedYear, setSchedYear] = useState(config.year || new Date().getFullYear());
   const today = new Date(); today.setHours(0,0,0,0);
   const [search, setSearch]   = useState("");
   const [filter, setFilter]   = useState("upcoming");
@@ -5464,6 +5515,19 @@ function MDAssignments({ members, rotas, upRotas, allSlots, showToast, specials,
 
   return (
     <div className="space-y-4">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-3 flex-wrap">
+      <span className="text-xl">🖨</span>
+      <div className="flex-1 min-w-0">
+        <div className="font-semibold text-slate-800">Rota schedule (PDF)</div>
+        <div className="text-xs text-slate-400">January – December: Rota Lead and Secondary for every week, with Confirmed / TBC / Done</div>
+      </div>
+      <select value={schedYear} onChange={e=>setSchedYear(parseInt(e.target.value))}
+        className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+        {[-1,0,1].map(d => (config.year || new Date().getFullYear()) + d).map(y => <option key={y} value={y}>{y}</option>)}
+      </select>
+      <button onClick={()=>{ if (!printRotaSchedule(schedYear, { rotas, members, specials, config })) showToast("Allow pop-ups to print","error"); }}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold">Print / PDF</button>
+    </div>
     <SwapPlanner members={members} rotas={rotas} upRotas={upRotas} allSlots={allSlots} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} showToast={showToast}/>
     <SpecialOccasions specials={specials} upSpecials={upSpecials} showToast={showToast}/>
     <div className="flex gap-5 items-start">
