@@ -5465,7 +5465,9 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
 
   // Pages are laid out here rather than left to the browser, so every page is a complete,
   // bordered table with its own headings: page 1 has the title block, later pages a short one.
-  const FIRST = 42, REST = 43;
+  // Kept well under a full page (about 240mm of 273mm) so browsers that print with
+  // wider margins than the page asks for still finish each page with its own border
+  const FIRST = 36, REST = 39;
   const pages = [];
   for (let i = 0; i < rows.length || pages.length === 0; ) {
     const n = pages.length === 0 ? FIRST : REST;
@@ -5479,10 +5481,10 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
     + "@page{size:A4;margin:12mm}*{box-sizing:border-box;margin:0;padding:0}"
     + "body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#e2e8f0}"
-    + ".page{width:186mm;padding-top:4mm;background:#fff;page-break-after:always;break-after:page}"
+    + ".page{width:186mm;padding-top:4mm;background:#fff;page-break-after:always;break-after:page;page-break-inside:avoid;break-inside:avoid}"
     + ".page:last-child{page-break-after:auto;break-after:auto}"
     + ".hd{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1e1b4b;padding-bottom:3mm;margin-bottom:5mm}"
-    + ".hd img{height:14mm;width:14mm;object-fit:contain}.org{font-size:16px;font-weight:900;color:#1e1b4b}.sub{font-size:10.5px;color:#334155}"
+    + ".hd img{height:12mm;width:12mm;object-fit:contain}.org{font-size:16px;font-weight:900;color:#1e1b4b}.sub{font-size:10.5px;color:#334155}"
     + ".cont{font-size:11px;font-weight:bold;color:#1e1b4b;margin-bottom:3mm}"
     + "table{width:100%;table-layout:fixed;border-collapse:collapse;border:2px solid #0f172a}"
     + "th,td{border:1px solid #1e293b;height:5.4mm;padding:0 2mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}"
