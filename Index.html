@@ -5462,6 +5462,120 @@ const DENOMS = [
 
 const CHECKLIST = ["Bins Cleared","Lights Off","Alarm Set","Door Locked","Keys in Locker"];
 
+// ─── Rota Sheet printout: one A4 page, scaled down to fit when the day is busy ──
+function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } = {}) {
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  const gbp = v => "£" + parseFloat(v || 0).toFixed(2);
+  const dash = v => (v == null || v === "") ? "—" : esc(v);
+  const day = d => d ? new Date(d).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) : "—";
+  const pay = p => ({ cash:"Cash", sumup:"Card", online:"Online" }[p] || "—");
+  const at = s.archanaTickets || {}, db = s.donationBook || {}, ev = s.expenseVouchers || {};
+  const closed = s.status === "closed";
+  const denoms = s.denomClose || Object.fromEntries(DENOMS.map(d => [d.label, (s.denoms && s.denoms[d.label] && s.denoms[d.label].count) || ""]));
+  const counted = DENOMS.reduce((t, d) => t + parseFloat(denoms[d.label] || 0) * d.val, 0);
+  const hundi = parseFloat((s.hundi && s.hundi.amount) || 0);
+  const cashIn = parseFloat(at.cashAmount || 0) + parseFloat(db.cashAmount || 0) + hundi;
+  const cashOut = parseFloat(ev.cashAmount || 0);
+  const expected = parseFloat(s.openingBalance || 0) + cashIn - cashOut;
+  const diff = counted - expected;
+  const card = parseFloat(at.sumupAmount || 0) + parseFloat(db.sumupAmount || 0) - parseFloat(ev.sumupAmount || 0);
+  const online = parseFloat(at.onlineAmount || 0) + parseFloat(db.onlineAmount || 0) - parseFloat(ev.onlineAmount || 0);
+  const income = parseFloat(at.amount || 0) + parseFloat(db.amount || 0) + hundi;
+  const net = income - parseFloat(ev.amount || 0);
+  const range = (r, n) => (parseInt(n) || 0) > 0 ? esc(r.start) + " – " + esc(r.end) : "—";
+  const sponsors = [].concat(
+    (sponsorships || []).flatMap(a => (a.donations || []).filter(d => (d.rotaDates || []).includes(s.date)).map(d => esc(d.donor) + " <i>(" + esc(a.name) + ")</i>")),
+    servicePaidOn(rotaSheets, s.date).map(d => esc(d.donor) + " <i>(" + esc(d.area) + ")</i>"),
+    s.sponsors ? [esc(s.sponsors)] : []);
+  const regRow = (name, r, n) => "<tr><td><b>" + name + "</b></td><td>" + range(r, n) + "</td><td class='n'>" + (parseInt(n) || 0) + "</td><td class='n'>" + gbp(r.cashAmount) + "</td><td class='n'>" + gbp(r.sumupAmount) + "</td><td class='n'>" + gbp(r.onlineAmount) + "</td><td class='n'><b>" + gbp(r.amount) + "</b></td></tr>";
+  const donors = db.donors || [], payees = ev.payees || [];
+  const sig = s.signature ? "<img src='" + s.signature + "' style='height:34px'/>" : s.rotaLeadSig ? "<div style='font-size:13px;font-style:italic;padding-top:10px'>" + esc(s.rotaLeadSig) + "</div>" : "";
+
+  let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota Sheet " + esc(s.date) + "</title><style>"
+    + "@page{size:A4;margin:10mm}*{box-sizing:border-box;margin:0;padding:0}"
+    + "body{width:190mm;font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#1e293b;background:#fff}"
+    + ".hd{display:flex;align-items:center;gap:8px;border-bottom:2px solid #3730a3;padding-bottom:5px;margin-bottom:6px}"
+    + ".hd img{height:38px;width:38px;object-fit:contain}.org{font-size:13px;font-weight:900;color:#1e1b4b}.sub{font-size:8px;color:#64748b}"
+    + ".badge{margin-left:auto;text-align:right}.badge span{display:inline-block;padding:2px 8px;border-radius:4px;font-weight:bold;font-size:9px}"
+    + ".grid{display:grid;gap:4px;margin-bottom:6px}.box{border:1px solid #e2e8f0;border-radius:4px;padding:3px 5px}"
+    + ".l{font-size:7px;color:#64748b;text-transform:uppercase;letter-spacing:.03em}.v{font-weight:bold;font-size:9.5px}"
+    + "h2{font-size:9.5px;color:#3730a3;margin:6px 0 2px;border-bottom:1px solid #c7d2fe;padding-bottom:1px}"
+    + "table{width:100%;border-collapse:collapse}th{background:#eef2ff;color:#3730a3;font-size:7.5px;text-align:left;padding:2px 3px}"
+    + "td{padding:1.5px 3px;border-bottom:1px solid #f1f5f9;font-size:8.5px;vertical-align:middle}.n{text-align:right;white-space:nowrap}"
+    + "tr.t td{font-weight:bold;background:#f8fafc;border-top:1px solid #cbd5e1}.none{color:#94a3b8;font-style:italic;padding:2px 3px}"
+    + ".dg{display:grid;grid-template-columns:repeat(10,1fr);gap:2px}.dc{border:1px solid #e2e8f0;border-radius:3px;text-align:center;padding:1px}"
+    + ".ok{color:#166534}.bad{color:#b91c1c}@media print{.noprint{display:none!important}}"
+    + "</style></head><body>";
+
+  // Header
+  h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
+    + "<div><div class='org'>" + esc(config.fullName || config.orgName || "") + "</div>"
+    + "<div class='sub'>" + (config.charityNo ? "Registered Charity No. " + esc(config.charityNo) + " · " : "") + "Rota Sheet · "
+    + new Date(s.date).toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" }) + "</div></div>"
+    + "<div class='badge'><span style='" + (closed ? "background:#dcfce7;color:#166534" : "background:#fef3c7;color:#92400e") + "'>" + (closed ? "CLOSED" : "OPEN — DRAFT") + "</span>"
+    + "<div class='sub' style='margin-top:2px'>Open " + dash(s.openingTime) + " · Close " + dash(s.closingTime) + "</div></div></div>";
+
+  // People
+  h += "<div class='grid' style='grid-template-columns:repeat(5,1fr)'>"
+    + [["Rota Lead", s.rotaLead], ["Rota Support", s.rotaSupport], ["Treasury", s.treasury], ["Priest", s.priest], ["Prasadham", s.prasadhamProvider]]
+      .map(([l, v]) => "<div class='box'><div class='l'>" + l + "</div><div class='v'>" + dash(v) + "</div></div>").join("") + "</div>";
+  if (sponsors.length) h += "<div class='box' style='margin-bottom:6px'><div class='l'>Sponsors</div><div>" + sponsors.join(", ") + "</div></div>";
+
+  // Money summary
+  h += "<h2>Money taken</h2><table><tr><th>Register</th><th>Numbers</th><th class='n'>Count</th><th class='n'>Cash</th><th class='n'>Card</th><th class='n'>Online</th><th class='n'>Total</th></tr>"
+    + regRow("Archana" + (at.dayType === "special" ? " (£5)" : " (£3)"), at, at.ticketCount)
+    + regRow("Donations", db, db.count)
+    + "<tr><td><b>Hundi</b></td><td>—</td><td></td><td class='n'>" + gbp(hundi) + "</td><td></td><td></td><td class='n'><b>" + gbp(hundi) + "</b></td></tr>"
+    + regRow("Expenses (out)", ev, ev.count)
+    + "<tr class='t'><td colspan='6'>Net revenue (income " + gbp(income) + " − expenses " + gbp(ev.amount) + ")</td><td class='n'>" + gbp(net) + "</td></tr></table>";
+
+  // Donations and expenses, side by side
+  h += "<div class='grid' style='grid-template-columns:1fr 1fr;margin-top:2px'>";
+  h += "<div><h2>Donations (" + donors.length + ")</h2>" + (donors.length
+    ? "<table><tr><th>No.</th><th>Donor</th><th>For</th><th>Date</th><th>Pay</th><th class='n'>£</th></tr>"
+      + donors.map(d => "<tr><td>" + esc(d.no) + "</td><td>" + esc(d.name) + "</td><td>" + esc(d.purpose || "General") + "</td><td>" + day(d.date) + "</td><td>" + pay(d.pay) + "</td><td class='n'>" + gbp(d.amount) + "</td></tr>").join("")
+      + "</table>"
+    : "<div class='none'>No donations</div>") + "</div>";
+  h += "<div><h2>Expenses (" + payees.length + ")</h2>" + (payees.length
+    ? "<table><tr><th>No.</th><th>Paid to</th><th>For</th><th>Date</th><th>Pay</th><th class='n'>£</th><th>Signed</th></tr>"
+      + payees.map(d => "<tr><td>" + esc(d.no) + "</td><td>" + esc(d.name) + "<div class='sub'>" + esc(d.contact) + "</div></td><td>" + esc(d.purpose) + "</td><td>" + day(d.date) + "</td><td>" + pay(d.pay) + "</td><td class='n'>" + gbp(d.amount) + "</td><td>"
+        + (d.sig ? "<img src='" + d.sig + "' style='height:16px'/>" : "<span class='bad'>missing</span>") + "</td></tr>").join("")
+      + "</table>"
+    : "<div class='none'>No expenses</div>") + "</div></div>";
+
+  // Cash check + card/online
+  h += "<div class='grid' style='grid-template-columns:2fr 1fr 1fr;margin-top:4px'>"
+    + "<div class='box'><div class='l'>Cash check</div><table>"
+    + "<tr><td>Opening balance</td><td class='n'>" + gbp(s.openingBalance) + "</td></tr>"
+    + "<tr><td>+ Cash in (Archana, Donations, Hundi)</td><td class='n'>" + gbp(cashIn) + "</td></tr>"
+    + "<tr><td>− Cash expenses</td><td class='n'>" + gbp(cashOut) + "</td></tr>"
+    + "<tr class='t'><td>Expected cash</td><td class='n'>" + gbp(expected) + "</td></tr>"
+    + "<tr><td>Counted (denominations)</td><td class='n'>" + gbp(counted) + "</td></tr>"
+    + "<tr><td><b>Difference</b></td><td class='n " + (Math.abs(diff) < 0.01 ? "ok'><b>✓ matched" : "bad'><b>" + (diff > 0 ? "+" : "−") + gbp(Math.abs(diff)) + (diff > 0 ? " over" : " short")) + "</b></td></tr></table></div>"
+    + "<div class='box'><div class='l'>Card total</div><div class='v' style='font-size:12px'>" + gbp(card) + "</div><div class='l' style='margin-top:4px'>Online total</div><div class='v' style='font-size:12px'>" + gbp(online) + "</div></div>"
+    + "<div class='box'><div class='l'>Closing balance</div><div class='v' style='font-size:12px'>" + gbp(s.closingBalance || counted) + "</div><div class='l' style='margin-top:4px'>Head count</div><div class='v' style='font-size:12px'>" + dash(s.headcount || s.headCount) + "</div></div></div>";
+
+  // Denominations
+  h += "<h2>Denomination count — " + gbp(counted) + "</h2><div class='dg'>"
+    + DENOMS.map(d => { const c = parseFloat(denoms[d.label] || 0); return "<div class='dc'><div class='l'>" + d.label + "</div><div class='v'>" + (c || 0) + "</div><div class='sub'>" + (c ? gbp(c * d.val) : "&nbsp;") + "</div></div>"; }).join("") + "</div>";
+
+  // Notes and signature
+  h += "<div class='grid' style='grid-template-columns:1fr 1fr 1fr;margin-top:6px'>"
+    + [["Volunteers", s.volunteers], ["To buy", s.toBuy], ["Notes", s.notes]].map(([l, v]) => "<div class='box'><div class='l'>" + l + "</div><div style='white-space:pre-wrap'>" + dash(v) + "</div></div>").join("") + "</div>";
+  h += "<div class='grid' style='grid-template-columns:2fr 1fr'><div class='box'><div class='l'>Rota Lead signature — " + dash(s.rotaLead) + "</div><div style='height:36px'>" + sig + "</div></div>"
+    + "<div class='box'><div class='l'>Printed</div><div class='v'>" + new Date().toLocaleString("en-GB", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) + "</div></div></div>";
+
+  // Shrink to one A4 page (277mm of printable height at 96dpi ≈ 1046px)
+  h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
+    + "<script>window.onload=function(){var h=document.body.scrollHeight,max=1040;if(h>max)document.body.style.zoom=(max/h).toFixed(3);setTimeout(function(){window.print();},300);};<\/script>"
+    + "</body></html>";
+
+  const w = window.open("", "_blank");
+  if (!w) return false;
+  w.document.write(h); w.document.close();
+  return true;
+}
+
 function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, regEntries, upRegEntries, rotas, config, allSlots, showToast, sevas, sponsorships, inventory, cashInHand, upCashInHand, isAdmin, priests=[], prasadham=[], currentUser=null }) {
   const [view, setView]   = useState("list");
   const [editId, setEditId] = useState(null);
@@ -5656,28 +5770,6 @@ function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, re
   // ── List view ──
   if (view === "list") {
     const sorted = [...rotaSheets].sort((a,b) => new Date(b.date)-new Date(a.date));
-    const printSheet = function(s) {
-      var at=s.archanaTickets||{}, db=s.donationBook||{}, ev=s.expenseVouchers||{};
-      var fmt=function(v){return v||"—";};
-      var fmtGBP=function(v){return "£"+(parseFloat(v||0).toFixed(2));};
-      var totalDenom=DENOMS.reduce(function(sum,d){return sum+parseFloat((s.denomClose&&s.denomClose[d.label])||0)*d.val;},0).toFixed(2);
-      var cashIncome=(parseFloat(at.cashAmount||0)+parseFloat(db.cashAmount||0)+parseFloat((s.hundi&&s.hundi.amount)||0)).toFixed(2);
-      var cashExp=parseFloat(ev.cashAmount||0).toFixed(2);
-      var expected=(parseFloat(s.openingBalance||0)+parseFloat(cashIncome)-parseFloat(cashExp)).toFixed(2);
-      var mismatch=Math.abs(parseFloat(totalDenom)-parseFloat(expected))>=0.01;
-      var html="<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota Sheet "+s.date+"</title><style>*{box-sizing:border-box;margin:0;padding:0;}@page{size:A4;margin:10mm;}body{font-family:Arial,sans-serif;font-size:9px;color:#1e293b;background:white;}.row{display:flex;gap:4px;margin-bottom:4px;}.col{flex:1;}.card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:4px 6px;}.lbl{font-size:7.5px;color:#94a3b8;text-transform:uppercase;}.val{font-weight:bold;font-size:10px;}table{width:100%;border-collapse:collapse;}th{background:#e0e7ff;color:#3730a3;font-size:7.5px;padding:2px 4px;text-align:left;}td{padding:1.5px 4px;border-bottom:1px solid #f1f5f9;font-size:8.5px;}.tr td{font-weight:bold;background:#f0f9ff;}.ok{background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:3px 8px;color:#166534;font-weight:bold;}.warn{background:#fef2f2;border:1px solid #fca5a5;border-radius:4px;padding:3px 8px;color:#991b1b;font-weight:bold;}.dg{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;margin:3px 0;}.dc{border:1px solid #e2e8f0;border-radius:3px;padding:2px;text-align:center;background:white;}.dl{font-size:7px;font-weight:bold;color:#64748b;}.dn{font-size:11px;font-weight:900;}.dv{font-size:7px;color:#94a3b8;}h2{font-size:10px;font-weight:bold;color:#1e3a8a;border-bottom:1px solid #c7d2fe;padding-bottom:2px;margin:6px 0 3px;}@media print{button{display:none!important;}}</style></head><body>";
-      html+="<div class='row' style='margin-bottom:5px;align-items:flex-start;'><div style='flex:1;'><div style='font-size:13px;font-weight:900;color:#3730a3;'>Rota Sheet</div><div style='font-size:10px;color:#64748b;'>"+new Date(s.date).toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})+"</div></div><div style='text-align:right;'><span style='background:#dcfce7;border:1px solid #86efac;border-radius:4px;padding:2px 8px;font-weight:bold;color:#166534;font-size:9px;'>CLOSED</span><div style='font-size:8px;color:#94a3b8;margin-top:2px;'>Open "+fmt(s.openingTime)+" · Close "+fmt(s.closingTime)+"</div></div></div>";
-      html+="<div class='row' style='margin-bottom:5px;'><div class='card col'><div class='lbl'>Rota Lead</div><div class='val'>"+fmt(s.rotaLead)+"</div></div><div class='card col'><div class='lbl'>Secondary</div><div class='val'>"+fmt(s.rotaSupport)+"</div></div><div class='card col'><div class='lbl'>Priest</div><div class='val'>"+fmt(s.priest)+"</div></div><div class='card col'><div class='lbl'>Prasadham</div><div class='val'>"+fmt(s.prasadhamProvider)+"</div></div><div class='card col'><div class='lbl'>Opening</div><div class='val' style='color:#1e3a8a;'>"+fmtGBP(s.openingBalance)+"</div></div><div class='card col'><div class='lbl'>Closing</div><div class='val' style='color:#166534;'>"+fmtGBP(s.closingBalance)+"</div></div></div>";
-      if(s.sponsors) html+="<div class='card' style='margin-bottom:5px;'><div class='lbl'>Sponsors</div><div style='font-weight:bold;font-size:9px;'>"+s.sponsors+"</div></div>";
-      html+="<div class='row' style='margin-bottom:5px;'><div class='col card'><div style='font-size:8px;font-weight:bold;color:#3730a3;margin-bottom:2px;'>Archana Tickets</div><table><tr><th>Count</th><th>"+(at.ticketCount||0)+"</th></tr><tr><td>Range</td><td>"+fmt(at.start)+" to "+fmt(s.archanaClose||at.end)+"</td></tr><tr><td>Type</td><td>"+(at.dayType==="special"?"Special 5":"Normal 3")+"</td></tr><tr><td>Cash</td><td>"+fmtGBP(at.cashAmount)+"</td></tr><tr><td>SumUp</td><td>"+fmtGBP(at.sumupAmount)+"</td></tr><tr><td>Online</td><td>"+fmtGBP(at.onlineAmount)+"</td></tr><tr class='tr'><td>Total</td><td>"+fmtGBP(at.amount)+"</td></tr></table></div><div class='col card'><div style='font-size:8px;font-weight:bold;color:#166534;margin-bottom:2px;'>Donations</div><table><tr><th>Count</th><th>"+(db.count||0)+"</th></tr><tr><td>Range</td><td>"+fmt(db.start)+" to "+fmt(s.donationClose||db.end)+"</td></tr><tr><td>Per Entry</td><td>"+fmtGBP(db.perAmount)+"</td></tr><tr><td>Cash</td><td>"+fmtGBP(db.cashAmount)+"</td></tr><tr><td>SumUp</td><td>"+fmtGBP(db.sumupAmount)+"</td></tr><tr><td>Online</td><td>"+fmtGBP(db.onlineAmount)+"</td></tr><tr class='tr'><td>Total</td><td>"+fmtGBP(db.amount)+"</td></tr></table></div><div class='col card'><div style='font-size:8px;font-weight:bold;color:#92400e;margin-bottom:2px;'>Expenses</div><table><tr><th>Count</th><th>"+(ev.count||0)+"</th></tr><tr><td>Range</td><td>"+fmt(ev.start)+" to "+fmt(s.expenseClose||ev.end)+"</td></tr><tr><td>Cash</td><td>"+fmtGBP(ev.cashAmount)+"</td></tr><tr><td>Online</td><td>"+fmtGBP(ev.onlineAmount)+"</td></tr><tr class='tr'><td>Total</td><td>"+fmtGBP(ev.amount)+"</td></tr></table></div><div class='col card'><div style='font-size:8px;font-weight:bold;color:#64748b;margin-bottom:2px;'>Other</div><table><tr><td>Hundi</td><td>"+fmtGBP(s.hundi&&s.hundi.amount)+"</td></tr><tr><td>SumUp Total</td><td>"+fmtGBP(s.finalSumup)+"</td></tr><tr><td>Online Total</td><td>"+fmtGBP(s.finalOnline)+"</td></tr></table><h2>Reconciliation</h2><table><tr><td>Opening</td><td>"+fmtGBP(s.openingBalance)+"</td></tr><tr><td>+ Cash In</td><td style='color:#166534;'>+"+fmtGBP(cashIncome)+"</td></tr><tr><td>- Cash Out</td><td style='color:#991b1b;'>-"+fmtGBP(cashExp)+"</td></tr><tr class='tr'><td>Expected</td><td>"+fmtGBP(expected)+"</td></tr><tr class='tr'><td>Counted</td><td style='color:"+(mismatch?"#991b1b":"#166534")+";'>"+fmtGBP(totalDenom)+"</td></tr></table><div class='"+(mismatch?"warn":"ok")+"' style='margin-top:4px;'>"+(mismatch?"MISMATCH Diff: £"+Math.abs(parseFloat(totalDenom)-parseFloat(expected)).toFixed(2):"Tallied OK")+"</div></div></div>";
-      html+="<h2>Denomination Count - Total: "+fmtGBP(totalDenom)+"</h2><div class='dg' style='margin-bottom:5px;'>";
-      DENOMS.forEach(function(d){var cnt=parseFloat((s.denomClose&&s.denomClose[d.label])||0);html+="<div class='dc'><div class='dl'>"+d.label+"</div><div class='dn'>"+(cnt||0)+"</div><div class='dv'>"+(cnt>0?"£"+(cnt*d.val).toFixed(cnt*d.val>=1?0:2):"")+"</div></div>";});
-      html+="</div>";
-      if(s.volunteers||s.headcount||s.toBuy){html+="<div class='row' style='margin-bottom:4px;'><div class='col card'><div class='lbl'>Volunteers</div><div style='font-size:8.5px;'>"+(s.volunteers||"—")+"</div></div><div class='card' style='width:60px;text-align:center;'><div class='lbl'>Count</div><div style='font-size:16px;font-weight:900;'>"+(s.headcount||"—")+"</div></div><div class='col card'><div class='lbl'>To Buy</div><div style='font-size:8.5px;'>"+(s.toBuy||"—")+"</div></div></div>";}
-      html+="<div class='row'><div class='col card'><div class='lbl'>Rota Lead Signature - "+fmt(s.rotaLead)+"</div>"+(s.signature?"<img src='"+s.signature+"' style='height:40px;margin-top:2px;border:1px solid #e2e8f0;border-radius:3px;'/>":"<div style='height:40px;border:1px dashed #cbd5e1;border-radius:3px;margin-top:2px;background:#f8fafc;'></div>")+"</div><div class='card' style='width:140px;text-align:center;'><div class='lbl'>Date</div><div style='font-size:9px;font-weight:bold;'>"+new Date(s.date).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})+"</div><div style='font-size:7.5px;color:#94a3b8;margin-top:1px;'>Closed "+fmt(s.closingTime)+"</div></div></div>";
-      html+="<button onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:white;border:none;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;'>Print / PDF</button></body></html>";
-      var w=window.open("","_blank"); w.document.write(html); w.document.close(); setTimeout(function(){w.print();},500);
-    };
     return (
       <div className="space-y-4 fade-in">
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -5728,7 +5820,7 @@ function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, re
                     {s.status==="closed"?"Closed":"Open"}
                   </span>
                   {s.status==="closed" && (
-                    <button onClick={e=>{e.stopPropagation();printSheet(s);}}
+                    <button onClick={e=>{e.stopPropagation();printRotaSheet(s, { config, rotaSheets, sponsorships });}}
                       className="text-xs bg-indigo-50 border border-indigo-200 text-indigo-600 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 font-medium">🖨 Print</button>
                   )}
                   {(isAdmin || (currentUser && currentUser.memberId && s.createdById === currentUser.memberId || s.rotaLead === currentUser.name)) && (
@@ -5783,6 +5875,9 @@ function orderMoney(r, price, dir) {
 const NO_ORDER = { orderPay:"", orderCount:0 };
 // Donations also clear the amount and donor once paid, ready for the next donor
 const NO_DONATION = { ...NO_ORDER, perAmount:"", orderName:"", orderContact:"", orderServiceId:"", orderServiceName:"", orderDate:"" };
+// Admin correction: empty a register on an open sheet and start its numbering again
+const resetRegister = (r, clear) => ({ ...r, count:0, ticketCount:0, end:r.start, amount:"0.00",
+  cashAmount:"0.00", sumupAmount:"0.00", onlineAmount:"0.00", donors:[], payees:[], ...clear });
 // The next receipt number a register will issue
 const nextRegNum = (r, prefix, count) => fmtRegNum(prefix, ((r||{}).firstNum || parseInt(((r||{}).start||"").replace(/\D/g,"")) + 1 || 1) + (parseInt(count)||0));
 // Donation record: what it was for (General or a service) and the date it's for
@@ -5869,7 +5964,7 @@ function SheetRegCard(props) {
   };
   var c = colors[color]||colors.indigo;
   return (
-    <div className={"rounded-2xl border-2 "+c.border+" "+c.bg+" overflow-hidden"}>
+    <div className={"rounded-2xl border-2 "+c.border+" "+c.bg+" overflow-hidden h-full flex flex-col"}>
       <div className={"px-4 py-3 flex items-center justify-between "+c.bg}>
         <div>
           <span className="font-bold text-slate-800 text-base">{icon} {label}</span>
@@ -5959,7 +6054,15 @@ function SheetRegCard(props) {
           </button>
         </div>
       )}
-      <div className="px-4 pb-2 text-xs text-slate-500">Today so far: <b>{count}</b></div>
+      <div className="px-4 pb-2 text-xs text-slate-500 flex items-center gap-2">
+        <span>Today so far: <b>{count}</b></span>
+        {props.onReset && !isClosed && (count > 0 || parseFloat(total) > 0) && (
+          <span className="ml-auto"><TypedConfirm word="RESET" label="Reset…" onConfirm={props.onReset}
+            warning={"Removes every "+label.toLowerCase()+" entry on this sheet and sets the total back to £0. Use only to clear mistakes."}
+            className="text-xs text-red-500 underline"/></span>
+        )}
+      </div>
+      <div className="flex-1"/>
       {(props.donors||[]).length > 0 && (
         <div className="px-4 pb-2 space-y-0.5">
           {props.donors.map(function(d){return (
@@ -6158,6 +6261,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         onIncr={issueArch} onDecr={undoArch}
         onPayType={function(p){up({archanaTickets:{...at,orderPay:p}});}}
         onTaken={function(){up({archanaTickets:{...at,...NO_ORDER}});}}
+        onReset={isAdmin ? function(){up({archanaTickets:resetRegister(at,NO_ORDER)});} : null}
       />
       {/* Day type for archana */}
       <div className="flex gap-2">
@@ -6182,6 +6286,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         onIncr={incrDon} onDecr={decrDon}
         onPayType={function(p){up({donationBook:{...db,orderPay:p}});}}
         onTaken={function(){up({donationBook:{...db,...NO_DONATION}});}}
+        onReset={isAdmin ? function(){up({donationBook:resetRegister(db,NO_DONATION)});} : null}
         amtLabel="Amount £" donors={db.donors}
         donor={{name:db.orderName, contact:db.orderContact}}
         onDonor={function(f,v){up({donationBook:{...db,[f]:v}});}}
@@ -6199,6 +6304,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         onIncr={incrExp} onDecr={decrExp}
         onPayType={function(p){up({expenseVouchers:{...ev,orderPay:p}});}}
         onTaken={function(){up({expenseVouchers:takeExpense(ev)});}}
+        onReset={isAdmin ? function(){up({expenseVouchers:resetRegister(ev,NO_EXPENSE)});} : null}
         amtLabel="Amount £" nameLabel="Paid to (name or company) *" donors={ev.payees}
         donor={{name:ev.orderName, contact:ev.orderContact}}
         expense={{purpose:ev.orderPurpose, date:ev.orderDate}}
@@ -6609,6 +6715,8 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
         </button>
         <div className="flex gap-2 items-center">
           {onPhoneView && <button onClick={onPhoneView} className="text-sm text-indigo-600 hover:underline font-medium">📱 Phone view</button>}
+          <button onClick={()=>{ if (!printRotaSheet(s, { config, rotaSheets, sponsorships })) showToast("Allow pop-ups to print","error"); }}
+            className="text-sm bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-semibold">🖨 Print / PDF</button>
           {!isClosed
             ? <button onClick={closeSheet} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700 shadow-sm">✓ Close Cash Counter</button>
             : <button onClick={reopenSheet} className="bg-amber-500 text-white px-5 py-2 rounded-xl font-bold text-sm hover:bg-amber-600">↩ Reopen Sheet</button>
@@ -7030,7 +7138,7 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
           {(() => {
             const db = s.donationBook||{}, ev = s.expenseVouchers||{};
             return (
-              <div className="grid md:grid-cols-2 gap-4 mt-4 items-start">
+              <div className="grid md:grid-cols-2 gap-4 mt-4 mb-6 items-stretch">
                 <SheetRegCard isClosed={isClosed}
                   label="Donations" icon="📖" color="emerald"
                   count={parseInt(db.count||0)} total={db.amount||"0.00"}
@@ -7043,6 +7151,7 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
                   onPayType={p=>up({donationBook:{...db,orderPay:p}})}
                   onPerAmt={v=>up({donationBook:{...db,perAmount:v}})}
                   onTaken={()=>up({donationBook:{...db,...NO_DONATION}})}
+                  onReset={()=>up({donationBook:resetRegister(db,NO_DONATION)})}
                   amtLabel="Amount £" donors={db.donors}
                   donor={{name:db.orderName, contact:db.orderContact}}
                   onDonor={(f,v)=>up({donationBook:{...db,[f]:v}})}/>
@@ -7056,6 +7165,7 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
                   onPayType={p=>up({expenseVouchers:{...ev,orderPay:p}})}
                   onPerAmt={v=>up({expenseVouchers:{...ev,perAmount:v}})}
                   onTaken={()=>up({expenseVouchers:takeExpense(ev)})}
+                  onReset={()=>up({expenseVouchers:resetRegister(ev,NO_EXPENSE)})}
                   amtLabel="Amount £" nameLabel="Paid to (name or company) *" donors={ev.payees}
                   donor={{name:ev.orderName, contact:ev.orderContact}}
                   expense={{purpose:ev.orderPurpose, date:ev.orderDate}}
