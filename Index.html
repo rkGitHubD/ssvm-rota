@@ -5448,6 +5448,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   const slots = [...weeks, ...extra].sort((a, b) => new Date(a.date) - new Date(b.date));
   const spName = sp => sp.label || sp.tag || "Special";
   const status = (done, who) => done ? "<td class='st done'>Done</td>" : who ? "<td class='st ok'>Confirmed</td>" : "<td class='st tbc'>TBC</td>";
+  // Nobody assigned: TBC in red (a week that's over just shows a dash)
+  const who0 = done => done ? "—" : "<span class='tbcname'>TBC</span>";
   let counts = { ok:0, tbc:0, done:0 };
   const rowsHtml = slots.map(sl => {
     // A Sunday that is also a special occasion: use whichever has the assignment
@@ -5457,8 +5459,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
     const remarks = r.notes || "";
     return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
-      + "</td><td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
-      + "<td>" + (esc(sec) || "—") + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
+      + "</td><td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td><td>" + (esc(lead) || who0(done)) + "</td>" + status(done, lead)
+      + "<td>" + (esc(sec) || who0(done)) + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
   }).join("");
 
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
@@ -5468,7 +5470,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     + ".hd img{height:36px;width:36px;object-fit:contain}.org{font-size:13px;font-weight:900;color:#1e1b4b}.sub{font-size:8.5px;color:#64748b}"
     + "table{width:100%;border-collapse:collapse}th{background:#3730a3;color:#fff;font-size:8.5px;text-align:left;padding:3px 4px}"
     + "td{padding:2.5px 4px;border-bottom:1px solid #e2e8f0;font-size:9px}"
-    + ".st{font-weight:bold;text-align:center;width:62px}.ok{color:#166534;background:#dcfce7}.tbc{color:#b91c1c;background:#fee2e2}"
+    + ".st{font-weight:bold;text-align:center;width:62px}.ok{color:#166534;background:#dcfce7}.tbc{color:#b91c1c;background:#fee2e2}.tbcname{color:#b91c1c;font-weight:bold}"
     + "tr.past td{background:#94a3b8;color:#f8fafc}tr.past td.done{background:#64748b;color:#fff}"
     + ".key{display:flex;gap:10px;margin-top:6px;font-size:8.5px;color:#475569}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
     + "@media print{.noprint{display:none!important}}"
