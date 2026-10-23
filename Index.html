@@ -5457,7 +5457,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
     const remarks = r.notes || "";
     return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
-      + sl.specialsHere.map(sp => " <b>★ " + esc(spName(sp)) + "</b>").join("") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
+      + "</td><td>" + [sl.weekNum ? "Week " + sl.weekNum : "", ...sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>")].filter(Boolean).join(" · ") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
       + "<td>" + (esc(sec) || "—") + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
   }).join("");
 
@@ -5478,8 +5478,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     + "<div class='sub'>Rota schedule · January – December " + year + "</div></div>"
     + "<div class='sub' style='margin-left:auto;text-align:right'>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })
     + "<br/>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
-  h += "<table><tr><th>Date / Rota</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Remarks</th></tr>"
-    + (rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</table>";
+  h += "<table><tr><th>Date</th><th>Rota</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Remarks</th></tr>"
+    + (rowsHtml || "<tr><td colspan='7' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</table>";
   h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#64748b;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
   h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
     + "<script>window.onload=function(){var h=document.body.scrollHeight,max=1040;if(h>max)document.body.style.zoom=(max/h).toFixed(3);setTimeout(function(){window.print();},300);};<\/script>"
