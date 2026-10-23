@@ -1339,7 +1339,7 @@ function Dashboard({ allSlots, rotas, members, activities, config, setTab, spons
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <InfoPill label="Rota Lead" value={selRota.lead ? getName(selRota.lead) : "Not assigned"} filled={!!selRota.lead} icon="🎯"/>
+            <InfoPill label="Rota Lead" value={selRota.committee ? "Committee" : selRota.lead ? getName(selRota.lead) : "Not assigned"} filled={!!selRota.lead || !!selRota.committee} icon="🎯"/>
             <InfoPill label="Secondary" value={`${(selRota.secondary||[]).length} member${(selRota.secondary||[]).length!==1?"s":""}`} filled={(selRota.secondary||[]).length>0} icon="🟣"/>
             <InfoPill label="Activities" value={`${Object.values(selRota.actOwners||{}).filter(Boolean).length}/${activities.length} assigned`} filled={Object.values(selRota.actOwners||{}).filter(Boolean).length===activities.length} icon="✅"/>
           </div>
@@ -5456,7 +5456,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
     // A Sunday that is also a special occasion: use whichever has the assignment
     const r = { ...(sl.specialsHere.length ? rotas[sl.specialsHere[0].key] || {} : {}), ...Object.fromEntries(Object.entries(rotas[sl.key] || {}).filter(([k, v]) => typeof v === "boolean" || (Array.isArray(v) ? v.length : v))) };
     const done = new Date(sl.date) < today;
-    const lead = name(r.lead), sec = (r.secondary || []).map(name).filter(Boolean).join(", ");
+    const lead = r.committee ? "Committee" : name(r.lead), sec = (r.secondary || []).map(name).filter(Boolean).join(", ");
     // Generated weeks are saved unconfirmed (leadConfirmed / secondaryConfirmed false) until confirmed
     const leadOk = !!lead && r.leadConfirmed !== false, secOk = !!sec && r.secondaryConfirmed !== false;
     if (done) counts.done++; else if (leadOk) counts.ok++; else counts.tbc++;
@@ -5528,6 +5528,8 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
 //   includeSpecials — special occasions get their own Rota Lead / Secondary too
 // Generated weeks are saved as not yet confirmed, so the schedule shows them as TBC.
 const DEFAULT_ROTA_RULES = { minGap: 2, includeSpecials: true, maxPer: {}, exclude: [] };
+// Stand-in for "the Committee" as Rota Lead in the generator's lists (saved as rota.committee)
+const COMMITTEE = "__committee__";
 
 // Share `n` rota days in date order among `ids`: everyone an equal share except people
 // with a yearly maximum, spread evenly through the year, keeping `minGap` between turns.
@@ -5585,9 +5587,12 @@ function RotaGenerator({ members, rotas, upRotas, specials, config, upConfig, sh
   const generate = () => {
     const d = days();
     const keep = id => !(rules.exclude||[]).includes(id);
-    const L = planRole(d.length, leads.map(m => m.id).filter(keep), rules);   // Rota Leads first
-    const S = planRole(d.length, secs.map(m => m.id).filter(keep), rules);
-    setPlan(d.map((x, i) => ({ ...x, lead: L[i], sec: S[i] })));
+    // Special occasions on other days: Rota Lead is the Committee, Secondary TBC; the rest are shared out
+    const n = d.filter(x => !x.special).length;
+    const L = planRole(n, leads.map(m => m.id).filter(keep), rules);   // Rota Leads first
+    const S = planRole(n, secs.map(m => m.id).filter(keep), rules);
+    let k = 0;
+    setPlan(d.map(x => x.special ? { ...x, lead: COMMITTEE, sec: "" } : { ...x, lead: L[k], sec: S[k++] }));
   };
   const setCell = (i, f, v) => setPlan(plan.map((p, j) => j === i ? { ...p, [f]: v } : p));
 
@@ -5596,7 +5601,7 @@ function RotaGenerator({ members, rotas, upRotas, specials, config, upConfig, sh
   if (plan) ["lead","sec"].forEach(f => {
     const last = {};
     plan.forEach((p, i) => {
-      const id = p[f]; if (!id) { issues[i+f] = "Nobody"; return; }
+      const id = p[f]; if (id === COMMITTEE) return; if (!id) { issues[i+f] = p.special && f === "sec" ? "" : "Nobody"; return; }
       totals[id] = (totals[id]||0) + 1;
       if (last[id] !== undefined && i - last[id] < rules.minGap) issues[i+f] = "Too soon after "+new Date(plan[last[id]].date).toLocaleDateString("en-GB",{day:"numeric",month:"short"});
       last[id] = i;
@@ -5609,7 +5614,8 @@ function RotaGenerator({ members, rotas, upRotas, specials, config, upConfig, sh
     const next = { ...rotas };
     plan.forEach(p => {
       next[p.key] = { lead:"", primary:[], secondary:[], actOwners:{}, ...(rotas[p.key]||{}),
-        lead: p.lead || "", secondary: p.sec ? [p.sec] : [], leadConfirmed: false, secondaryConfirmed: false, generated: year };
+        lead: p.lead === COMMITTEE ? "" : (p.lead || ""), committee: p.lead === COMMITTEE, secondary: p.sec ? [p.sec] : [],
+        leadConfirmed: p.lead === COMMITTEE, secondaryConfirmed: false, generated: year };
     });
     upRotas(next);
     showToast(year+" rota saved — every week shows TBC until confirmed");
@@ -5659,7 +5665,7 @@ function RotaGenerator({ members, rotas, upRotas, specials, config, upConfig, sh
                 </select></label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={!!rules.includeSpecials} onChange={e=>setRules({ includeSpecials: e.target.checked })}/>
-                Give special occasions on other days their own Rota Lead and Secondary</label>
+                Include special occasions on other days (Rota Lead: Committee, Secondary: TBC)</label>
               <p className="text-xs text-slate-400">Everyone gets an equal share of the year, except anyone with a maximum. Rota Leads are planned first, then Secondaries.</p>
             </div>
             <div>
@@ -5697,6 +5703,7 @@ function RotaGenerator({ members, rotas, upRotas, specials, config, upConfig, sh
                             <select value={p[f]} onChange={e=>setCell(i, f, e.target.value)}
                               className={sel+(issues[i+f] ? " border-amber-400 bg-amber-50" : "")} title={issues[i+f]||""}>
                               <option value="">TBC</option>
+                              {f === "lead" && <option value={COMMITTEE}>🏛 Committee</option>}
                               {(f === "lead" ? leads : secs).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                             </select>
                             {issues[i+f] && issues[i+f] !== "Nobody" && <div className="text-xs text-amber-700">{issues[i+f]}</div>}
@@ -5835,10 +5842,12 @@ function MDAssignments({ members, rotas, upRotas, allSlots, showToast, specials,
                     <input type="checkbox" checked={local.leadConfirmed !== false} onChange={e=>setLocal({...local,leadConfirmed:e.target.checked})}/> Confirmed</label>}
                 </div>
                 <div className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-hide">
-                  <button onClick={()=>setLocal({...local,lead:""})}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${!local.lead?"bg-slate-100 border-slate-300 font-semibold":"border-transparent hover:bg-slate-50 text-slate-500"}`}>— None</button>
+                  <button onClick={()=>setLocal({...local,lead:"",committee:false})}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${!local.lead&&!local.committee?"bg-slate-100 border-slate-300 font-semibold":"border-transparent hover:bg-slate-50 text-slate-500"}`}>— None</button>
+                  <button onClick={()=>setLocal({...local,lead:"",committee:true})}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors ${local.committee?"bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold":"border-transparent hover:bg-slate-50"}`}>🏛 Committee</button>
                   {[...primaries,...secondaries].map(m=>(
-                    <button key={m.id} onClick={()=>setLocal({...local,lead:m.id})}
+                    <button key={m.id} onClick={()=>setLocal({...local,lead:m.id,committee:false})}
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm border flex items-center gap-2 transition-colors ${local.lead===m.id?"bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold":"border-transparent hover:bg-slate-50"}`}>
                       <Avatar name={m.name} size="sm"/>
                       <span className="flex-1 truncate">{m.name}</span>
