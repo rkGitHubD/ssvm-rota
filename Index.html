@@ -5437,18 +5437,27 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
   const name = id => (members.find(m => m.id === id) || {}).name || "";
   const today = new Date(); today.setHours(0,0,0,0);
-  const slots = [...getWeeksForYear(year), ...specials.filter(sp => new Date(sp.date).getFullYear() === year).map(sp => ({ ...sp, isSpecial:true }))]
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  // One row per day: a special occasion on a rota Sunday joins that Sunday's row; others get their own row
+  const ymd = d => { const x = new Date(d); return x.getFullYear()+"-"+(x.getMonth()+1)+"-"+x.getDate(); };
+  const weeks = getWeeksForYear(year).map(w => ({ ...w, specialsHere: [] }));
+  const extra = [];
+  specials.filter(sp => new Date(sp.date).getFullYear() === year).forEach(sp => {
+    const w = weeks.find(x => ymd(x.date) === ymd(sp.date));
+    if (w) w.specialsHere.push(sp); else extra.push({ ...sp, isSpecial:true, specialsHere:[sp] });
+  });
+  const slots = [...weeks, ...extra].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const spName = sp => sp.label || sp.tag || "Special";
   const status = (done, who) => done ? "<td class='st done'>Done</td>" : who ? "<td class='st ok'>Confirmed</td>" : "<td class='st tbc'>TBC</td>";
   let counts = { ok:0, tbc:0, done:0 };
   const rowsHtml = slots.map(sl => {
-    const r = rotas[sl.key] || {};
+    // A Sunday that is also a special occasion: use whichever has the assignment
+    const r = { ...(sl.specialsHere.length ? rotas[sl.specialsHere[0].key] || {} : {}), ...Object.fromEntries(Object.entries(rotas[sl.key] || {}).filter(([k, v]) => Array.isArray(v) ? v.length : v)) };
     const done = new Date(sl.date) < today;
     const lead = name(r.lead), sec = (r.secondary || []).map(name).filter(Boolean).join(", ");
     if (done) counts.done++; else if (lead) counts.ok++; else counts.tbc++;
-    const remarks = [sl.isSpecial ? "★ " + (sl.tag || sl.label || "Special") : "", r.notes || ""].filter(Boolean).join(" · ");
+    const remarks = r.notes || "";
     return "<tr class='" + (done ? "past" : "") + "'><td>" + new Date(sl.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" })
-      + (sl.isSpecial ? " <b>★</b>" : "") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
+      + sl.specialsHere.map(sp => " <b>★ " + esc(spName(sp)) + "</b>").join("") + "</td><td>" + (esc(lead) || "—") + "</td>" + status(done, lead)
       + "<td>" + (esc(sec) || "—") + "</td>" + status(done, sec) + "<td>" + esc(remarks) + "</td></tr>";
   }).join("");
 
