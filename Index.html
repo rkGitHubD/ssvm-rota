@@ -320,7 +320,9 @@ function App() {
         setPriests(g("rota-priests", []));
   };
 
-  const weeks = getWeeksForYear(config.year);
+  // This year's weeks, plus next year's once a rota has been generated or assigned for it
+  const nextYearWeeks = getWeeksForYear(config.year + 1);
+  const weeks = [...getWeeksForYear(config.year), ...(nextYearWeeks.some(w => rotas[w.key]) ? nextYearWeeks : [])];
   const allSlots = [...weeks, ...specials.map(s=>({...s,isSpecial:true}))].sort((a,b)=>new Date(a.date)-new Date(b.date));
 
   // ── Role flags ────────────────────────────────────────────────────────────
