@@ -1686,7 +1686,7 @@ function RotaCalendar({ allSlots, rotas, upRotas, members, activities, config, s
                     {/* Slot info (wider screens) */}
                     {s && (
                       <div className={`hidden md:block rounded-lg px-1.5 py-1 text-xs leading-snug ${isPast?"opacity-70":""}`}>
-                        {special && <div className="text-violet-700 font-bold text-xs mb-0.5">⭐ {s.tag||"Special"}</div>}
+                        {special && <div className="text-violet-700 font-bold text-xs mb-0.5 truncate" title={s.label}>⭐ {s.label||s.tag||"Special"}</div>}
                         {personFilter && personInSlot && r && (() => {
                           const roles = [];
                           if (r.lead===personFilter) roles.push("🎯 Lead");
