@@ -5083,6 +5083,16 @@ function SpecialOccasions({ specials, upSpecials, showToast }) {
     showToast("Special occasion added");
   };
   const remove = s => { upSpecials(specials.filter(x=>x.key!==s.key)); showToast("Removed " + s.label); };
+  // Edit in place; the key stays the same so the day's Rota Lead / Secondary stay with it
+  const [editKey, setEditKey] = useState(null);
+  const [draft, setDraft]     = useState({label:"",date:"",tag:""});
+  const isoDay = d => { const x = new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
+  const startEdit = s => { setEditKey(s.key); setDraft({label:s.label||"", date:isoDay(s.date), tag:s.tag||""}); };
+  const saveEdit = () => {
+    if (!draft.label.trim() || !draft.date) { showToast("Name and date required","error"); return; }
+    upSpecials(specials.map(x => x.key === editKey ? {...x, label:draft.label.trim(), date:new Date(draft.date+"T12:00:00"), tag:draft.tag.trim()||"Special"} : x));
+    setEditKey(null); showToast("Special occasion updated");
+  };
 
   // ── Upload from Excel / CSV ──
   const [upload, setUpload] = useState(null);   // { file, rows:[{date,label,tag,problem}] }
@@ -5135,13 +5145,26 @@ function SpecialOccasions({ specials, upSpecials, showToast }) {
           {shown.length === 0
             ? <p className="text-xs text-slate-400">{showPast ? "No special occasions yet." : "No upcoming special occasions."}</p>
             : <div className="divide-y divide-slate-100">
-                {shown.map(s => (
+                {shown.map(s => editKey === s.key ? (
+                  <div key={s.key} className="bg-amber-50 border border-amber-200 rounded-xl p-3 my-2 space-y-2">
+                    <input value={draft.label} onChange={e=>setDraft({...draft,label:e.target.value})} placeholder="Name" autoFocus className={ic}/>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})} className={ic}/>
+                      <input value={draft.tag} onChange={e=>setDraft({...draft,tag:e.target.value})} placeholder="Type (e.g. Festival)" className={ic}/>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={saveEdit} className="flex-1 bg-amber-500 text-white rounded-lg py-1.5 text-sm font-medium hover:bg-amber-600">Save</button>
+                      <button onClick={()=>setEditKey(null)} className="flex-1 bg-white border border-slate-200 text-slate-600 rounded-lg py-1.5 text-sm font-medium">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
                   <div key={s.key} className={"flex items-center gap-3 py-2 "+(new Date(s.date)<today?"opacity-50":"")}>
                     <div className="w-14 text-xs font-semibold text-slate-500 flex-shrink-0">{new Date(s.date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-slate-800 truncate">{s.label}</div>
                       <div className="text-xs text-amber-600">{s.tag||"Special"}</div>
                     </div>
+                    <button onClick={()=>startEdit(s)} className="text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1">Edit</button>
                     <button onClick={()=>remove(s)} className="text-xs text-red-500 hover:text-red-700 px-2 py-1">Remove</button>
                   </div>
                 ))}
