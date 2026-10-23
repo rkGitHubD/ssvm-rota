@@ -5451,7 +5451,7 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
   // Nobody assigned: TBC in red (a week that's over just shows a dash)
   const who0 = done => done ? "—" : "<span class='tbcname'>TBC</span>";
   let counts = { ok:0, tbc:0, done:0 };
-  const rowsHtml = slots.map(sl => {
+  const rows = slots.map(sl => {
     // A Sunday that is also a special occasion: use whichever has the assignment
     const r = { ...(sl.specialsHere.length ? rotas[sl.specialsHere[0].key] || {} : {}), ...Object.fromEntries(Object.entries(rotas[sl.key] || {}).filter(([k, v]) => Array.isArray(v) ? v.length : v)) };
     const done = new Date(sl.date) < today;
@@ -5461,28 +5461,47 @@ function printRotaSchedule(year, { rotas = {}, members = [], specials = [], conf
       + "</td><td>" + (esc(lead) || who0(done)) + "</td>" + status(done, lead)
       + "<td>" + (esc(sec) || who0(done)) + "</td>" + status(done, sec)
       + "<td>" + sl.specialsHere.map(sp => "<b>★ " + esc(spName(sp)) + "</b>").join(" · ") + "</td></tr>";
-  }).join("");
+  });
+
+  // Pages are laid out here rather than left to the browser, so every page is a complete,
+  // bordered table with its own headings: page 1 has the title block, later pages a short one.
+  const FIRST = 42, REST = 44;
+  const pages = [];
+  for (let i = 0; i < rows.length || pages.length === 0; ) {
+    const n = pages.length === 0 ? FIRST : REST;
+    pages.push(rows.slice(i, i + n)); i += n;
+  }
+  const head = "<thead><tr><th style='width:15%'>Date</th><th style='width:20%'>Rota Lead</th><th class='c' style='width:11%'>Status</th>"
+    + "<th style='width:21%'>Secondary</th><th class='c' style='width:11%'>Status</th><th style='width:22%'>Occasion</th></tr></thead>";
+  const title = esc(config.fullName || config.orgName || "");
 
   let h = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Rota schedule " + year + "</title><style>"
-    + "@page{size:A4;margin:10mm}*{box-sizing:border-box;margin:0;padding:0}"
-    + "body{width:186mm;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#1e293b;background:#fff}"
-    + ".hd{display:flex;align-items:center;gap:8px;border-bottom:2px solid #3730a3;padding-bottom:5px;margin-bottom:6px}"
-    + ".hd img{height:36px;width:36px;object-fit:contain}.org{font-size:13px;font-weight:900;color:#1e1b4b}.sub{font-size:8.5px;color:#64748b}"
-    + "table{width:100%;border-collapse:collapse;border:1.5px solid #1e293b}th,td{border:1px solid #475569}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}tbody tr:last-child td{border-bottom:1.5px solid #1e293b}th{background:#3730a3;color:#fff;font-size:8.5px;text-align:left;padding:3px 4px}"
-    + "td{padding:2.5px 4px;font-size:9px}"
-    + ".st{font-weight:bold;text-align:center;width:62px}.ok{color:#166534;background:#dcfce7}.tbc{color:#b91c1c;background:#fee2e2}.tbcname{color:#b91c1c;font-weight:bold}"
-    + "tr.past td{background:#94a3b8;color:#f8fafc}tr.past td.done{background:#64748b;color:#fff}"
-    + ".key{display:flex;gap:10px;margin-top:6px;font-size:8.5px;color:#475569}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
-    + "@media print{.noprint{display:none!important}}"
+    + "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}"
+    + "body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#e2e8f0}"
+    + ".page{width:210mm;height:297mm;padding:16mm 14mm 18mm;position:relative;background:#fff;overflow:hidden;margin:0 auto 6mm;page-break-after:always;break-after:page}"
+    + ".page:last-child{page-break-after:auto;break-after:auto}"
+    + ".hd{display:flex;align-items:center;gap:10px;border-bottom:2px solid #1e1b4b;padding-bottom:3mm;margin-bottom:5mm}"
+    + ".hd img{height:14mm;width:14mm;object-fit:contain}.org{font-size:16px;font-weight:900;color:#1e1b4b}.sub{font-size:10.5px;color:#334155}"
+    + ".cont{font-size:11px;font-weight:bold;color:#1e1b4b;margin-bottom:3mm}"
+    + "table{width:100%;table-layout:fixed;border-collapse:collapse;border:2px solid #0f172a}"
+    + "th,td{border:1px solid #1e293b;height:5.4mm;padding:0 2mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px}"
+    + "th{background:#1e1b4b;color:#fff;font-size:10px;text-align:left;height:7mm}.c{text-align:center}"
+    + ".st{font-weight:bold;text-align:center}.ok{color:#14532d;background:#bbf7d0}.tbc{color:#991b1b;background:#fecaca}.tbcname{color:#991b1b;font-weight:bold}"
+    + "tr.past td{background:#94a3b8;color:#0f172a}tr.past td.done{background:#475569;color:#fff}"
+    + ".key{display:flex;gap:10px;margin-top:4mm;font-size:10px;color:#0f172a}.key span{padding:1px 6px;border-radius:3px;font-weight:bold}"
+    + ".foot{position:absolute;left:14mm;right:14mm;bottom:8mm;display:flex;justify-content:space-between;font-size:9.5px;color:#334155;border-top:1px solid #94a3b8;padding-top:2mm}"
+    + "@media print{body{background:#fff}.page{margin:0}.noprint{display:none!important}}"
     + "</style></head><body>";
-  h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
-    + "<div><div class='org'>" + esc(config.fullName || config.orgName || "") + "</div>"
-    + "<div class='sub'>Rota schedule · January – December " + year + "</div></div>"
-    + "<div class='sub' style='margin-left:auto;text-align:right'>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })
-    + "<br/>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
-  h += "<table><thead><tr><th>Date</th><th>Rota Lead</th><th style='text-align:center'>Status</th><th>Secondary</th><th style='text-align:center'>Status</th><th>Occasion</th></tr></thead><tbody>"
-    + (rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#94a3b8'>No rota weeks for " + year + "</td></tr>") + "</tbody></table>";
-  h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#64748b;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
+  pages.forEach((pg, i) => {
+    h += "<div class='page'>";
+    if (i === 0) h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
+      + "<div><div class='org'>" + title + "</div><div class='sub'>Rota schedule · January – December " + year + "</div></div>"
+      + "<div class='sub' style='margin-left:auto;text-align:right'>" + counts.ok + " confirmed · " + counts.tbc + " TBC · " + counts.done + " done</div></div>";
+    else h += "<div class='cont'>" + title + " — Rota schedule " + year + " (continued)</div>";
+    h += "<table>" + head + "<tbody>" + (pg.join("") || "<tr><td colspan='6' class='c'>No rota weeks for " + year + "</td></tr>") + "</tbody></table>";
+    if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — still to be filled</span><span style='background:#475569;color:#fff'>Done — week is over</span><span>★ Special occasion</span></div>";
+    h += "<div class='foot'><span>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) + "</span><span>Page " + (i + 1) + " of " + pages.length + "</span></div></div>";
+  });
   h += "<button class='noprint' onclick='window.print()' style='position:fixed;bottom:16px;right:16px;background:#3730a3;color:#fff;border:0;padding:8px 20px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer'>Print / Save as PDF</button>"
     + "<script>window.onload=function(){setTimeout(function(){window.print();},300);};<\/script>"
     + "</body></html>";
