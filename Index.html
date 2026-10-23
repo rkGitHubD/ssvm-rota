@@ -5789,7 +5789,12 @@ const validContact = c => /^\S+@\S+\.\S+$/.test((c||"").trim()) || (c||"").repla
 const partyReady = r => parseFloat((r||{}).perAmount||0) > 0 && !!((r||{}).orderName||"").trim() && validContact((r||{}).orderContact);
 const donationReady = partyReady;
 // Expenses also clear the receiver's signature once paid
-const NO_EXPENSE = { ...NO_DONATION, orderSig:"" };
+const NO_EXPENSE = { ...NO_DONATION, orderSig:"", orderPurpose:"", orderDate:"" };
+// Expenses also need what it was for and when it was spent
+const expenseReady = ev => partyReady(ev) && !!((ev||{}).orderPurpose||"").trim() && !!(ev||{}).orderDate;
+// Voucher record: payee, contact, amount and payment, plus purpose and date
+const addPayee = (ev, no) => addDonor({ ...ev, donors: ev.payees }, no)
+  .map((p, i, all) => i === all.length-1 ? { ...p, purpose: (ev.orderPurpose||"").trim(), date: ev.orderDate } : p);
 // "Payment taken" on an expense: the receiver's signature goes on every voucher in the order
 const takeExpense = ev => ({ ...ev, payees: (ev.payees||[]).map((p,i,all) => i >= all.length-(ev.orderCount||0) ? { ...p, sig: ev.orderSig } : p), ...NO_EXPENSE });
 
@@ -5842,10 +5847,11 @@ function SheetRegCard(props) {
       onIncr=props.onIncr, onDecr=props.onDecr, onPayType=props.onPayType,
       onPerAmt=props.onPerAmt, onTaken=props.onTaken, priceNow=parseFloat(props.price||0),
       donor=props.donor, onDonor=props.onDonor, amtLabel=props.amtLabel||"£ per entry",
-      nameLabel=props.nameLabel||"Donor name *", sig=props.sig, onSig=props.onSig;
+      nameLabel=props.nameLabel||"Donor name *", sig=props.sig, onSig=props.onSig, expense=props.expense;
   var open = orderCount > 0;
   // Donations and expenses need an amount, a name and a contact before any payment can be taken
-  var ready = !donor || partyReady({perAmount:perAmt, orderName:donor.name, orderContact:donor.contact});
+  var ready = !donor || (expense ? expenseReady : partyReady)({perAmount:perAmt, orderName:donor.name, orderContact:donor.contact,
+    orderPurpose:expense&&expense.purpose, orderDate:expense&&expense.date});
   var needSig = !!onSig;
   var colors = {
     indigo: {bg:"bg-indigo-50", border:"border-indigo-200", badge:"bg-indigo-600", text:"text-indigo-700"},
@@ -5877,10 +5883,21 @@ function SheetRegCard(props) {
             placeholder={nameLabel} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100"/>
           <input value={donor.contact||""} onChange={function(e){onDonor("orderContact",e.target.value);}} disabled={isClosed||open}
             placeholder="Email or phone *" inputMode="email" className={"w-full border rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:bg-slate-100 "+(donor.contact&&!validContact(donor.contact)?"border-red-300":"border-slate-200")}/>
+          {expense && (
+            <>
+              <input value={expense.purpose||""} onChange={function(e){onDonor("orderPurpose",e.target.value);}} disabled={isClosed||open}
+                placeholder="What was it for? *" className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:bg-slate-100"/>
+              <label className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 whitespace-nowrap flex-shrink-0">Date of expense *</span>
+                <input type="date" value={expense.date||""} max={new Date().toISOString().slice(0,10)} onChange={function(e){onDonor("orderDate",e.target.value);}} disabled={isClosed||open}
+                  className="flex-1 min-w-0 border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:bg-slate-100"/>
+              </label>
+            </>
+          )}
         </div>
       )}
       {/* 1. Payment type for this order — locked once something is added */}
-      <div className="px-4 pb-1 text-xs font-semibold text-slate-500">{open ? "This order is paying by" : !ready ? "Enter the amount, name and email or phone first" : "1. How are they paying?"}</div>
+      <div className="px-4 pb-1 text-xs font-semibold text-slate-500">{open ? "This order is paying by" : !ready ? (expense ? "Fill in all the details above first" : "Enter the amount, name and email or phone first") : "1. How are they paying?"}</div>
       <div className="px-4 pb-3 flex gap-1.5">
         {PAY.map(function(p){var on=orderPay===p; return (
           <button key={p} onClick={function(){onPayType&&onPayType(p);}} disabled={isClosed||(open&&!on)||!ready}
@@ -5919,7 +5936,7 @@ function SheetRegCard(props) {
       {(props.donors||[]).length > 0 && (
         <div className="px-4 pb-2 space-y-0.5">
           {props.donors.map(function(d){return (
-            <div key={d.no} className="text-xs text-slate-600 flex items-center gap-2"><span className="font-mono text-slate-400">{d.no}</span><span className="flex-1 truncate">{d.name}</span><span className="font-semibold">£{d.amount}</span><span>{(PAY_LABEL[d.pay]||"").split(" ")[0]}</span>{d.sig && <img src={d.sig} alt="signed" className="h-5 border border-slate-200 rounded bg-white"/>}</div>
+            <div key={d.no} className="text-xs text-slate-600 flex items-center gap-2"><span className="font-mono text-slate-400">{d.no}</span><span className="flex-1 truncate">{d.name}{d.purpose && <span className="text-slate-400"> · {d.purpose}{d.date ? " · "+new Date(d.date).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : ""}</span>}</span><span className="font-semibold">£{d.amount}</span><span>{(PAY_LABEL[d.pay]||"").split(" ")[0]}</span>{d.sig && <img src={d.sig} alt="signed" className="h-5 border border-slate-200 rounded bg-white"/>}</div>
           );})}
         </div>
       )}
@@ -6021,13 +6038,13 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
   var incrExp = function() {
     if (isClosed) return;
     var ev = s.expenseVouchers||{};
-    if (!partyReady(ev)) return showToast("Enter the amount, paid to and email or phone first","error");
+    if (!expenseReady(ev)) return showToast("Fill in amount, paid to, email or phone, what it was for and the date first","error");
     if (!ev.orderPay) return showToast("Choose Cash, Card or Online first","error");
     var prefix = expenseReg ? (expenseReg.prefix||"E") : "E";
     var firstNum = ev.firstNum || parseInt((ev.start||"").replace(/\D/g,"")+1)||1;
     var newCnt = (parseInt(ev.count||0))+1;
     var newEnd = fmtRegNum(prefix,firstNum+newCnt-1);
-    up({expenseVouchers:{...ev,count:newCnt,end:newEnd,firstNum,payees:addDonor({...ev,donors:ev.payees},newEnd),...orderMoney(ev,parseFloat(ev.perAmount||0),1)}});
+    up({expenseVouchers:{...ev,count:newCnt,end:newEnd,firstNum,payees:addPayee(ev,newEnd),...orderMoney(ev,parseFloat(ev.perAmount||0),1)}});
   };
   var decrExp = function() {
     if (isClosed) return;
@@ -6152,6 +6169,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         onTaken={function(){up({expenseVouchers:takeExpense(ev)});}}
         amtLabel="Amount £" nameLabel="Paid to (name or company) *" donors={ev.payees}
         donor={{name:ev.orderName, contact:ev.orderContact}}
+        expense={{purpose:ev.orderPurpose, date:ev.orderDate}}
         onDonor={function(f,v){up({expenseVouchers:{...ev,[f]:v}});}}
         sig={ev.orderSig} onSig={function(v){up({expenseVouchers:{...ev,orderSig:v}});}}
         onPerAmt={function(v){up({expenseVouchers:{...ev,perAmount:v}});}}
@@ -6401,13 +6419,13 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
   const incrExpense = () => {
     if (s.status === "closed") return;
     const ev       = s.expenseVouchers;
-    if (!partyReady(ev)) return showToast("Enter the amount, paid to and email or phone first", "error");
+    if (!expenseReady(ev)) return showToast("Fill in amount, paid to, email or phone, what it was for and the date first", "error");
     if (!ev.orderPay) return showToast("Choose Cash, Card or Online first", "error");
     const prefix   = expenseReg ? (expenseReg.prefix || "E") : "E";
     const firstNum = ev.firstNum || parseInt((ev.start||"").replace(/\D/g,"")) + 1 || 1;
     const newCnt   = (parseInt(ev.count||0)) + 1;
     const newEnd   = fmtRegNum(prefix, firstNum + newCnt - 1);
-    up({ expenseVouchers: { ...ev, count: newCnt, end: newEnd, firstNum, payees: addDonor({ ...ev, donors: ev.payees }, newEnd), ...orderMoney(ev, parseFloat(ev.perAmount||0), 1) } });
+    up({ expenseVouchers: { ...ev, count: newCnt, end: newEnd, firstNum, payees: addPayee(ev, newEnd), ...orderMoney(ev, parseFloat(ev.perAmount||0), 1) } });
   };
   const decrExpense = () => {
     if (s.status === "closed") return;
@@ -6934,6 +6952,12 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                           onChange={e=>up({expenseVouchers:{...ev,orderName:e.target.value}})} className={cls}/>
                         <input value={ev.orderContact||""} disabled={locked} placeholder="Email or phone *"
                           onChange={e=>up({expenseVouchers:{...ev,orderContact:e.target.value}})} className={cls}/>
+                        <input value={ev.orderPurpose||""} disabled={locked} placeholder="What was it for? *"
+                          onChange={e=>up({expenseVouchers:{...ev,orderPurpose:e.target.value}})} className={cls}/>
+                        <label className="flex items-center gap-1.5 text-xs text-slate-500">Date of expense *
+                          <input type="date" value={ev.orderDate||""} disabled={locked} max={new Date().toISOString().slice(0,10)}
+                            onChange={e=>up({expenseVouchers:{...ev,orderDate:e.target.value}})} className={cls+" flex-1"}/>
+                        </label>
                         {locked && (
                           <div>
                             <div className="text-xs font-semibold text-slate-500 mt-1">✍️ Receiver's signature *</div>
@@ -6945,7 +6969,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                   })()}
                   {(s.expenseVouchers?.payees||[]).length > 0 && (
                     <div className="mt-1.5 text-xs text-slate-500 space-y-0.5">
-                      {s.expenseVouchers.payees.map(d => <div key={d.no} className="flex items-center gap-1.5">{d.no} · {d.name} · {d.contact} · £{d.amount} · {PAY_LABEL[d.pay]||d.pay}{d.sig && <img src={d.sig} alt="signed" className="h-5 border border-slate-200 rounded bg-white"/>}</div>)}
+                      {s.expenseVouchers.payees.map(d => <div key={d.no} className="flex items-center gap-1.5">{d.no} · {d.name} · {d.contact} · {d.purpose} · {d.date && new Date(d.date).toLocaleDateString("en-GB")} · £{d.amount} · {PAY_LABEL[d.pay]||d.pay}{d.sig && <img src={d.sig} alt="signed" className="h-5 border border-slate-200 rounded bg-white"/>}</div>)}
                     </div>
                   )}
                 </div>
@@ -6960,7 +6984,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                     <div className="flex items-center justify-center gap-0.5">
                       <button onClick={decrExpense} disabled={!(s.expenseVouchers?.orderCount>0)} className="disabled:opacity-30 w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs flex items-center justify-center flex-shrink-0">−</button>
                       <span className="font-bold text-slate-800 w-6 text-center text-sm">{s.expenseVouchers?.count||0}</span>
-                      <button onClick={incrExpense} disabled={!s.expenseVouchers?.orderPay||!partyReady(s.expenseVouchers)} title={!partyReady(s.expenseVouchers)?"Enter the amount, paid to and email or phone first":s.expenseVouchers?.orderPay?"":"Choose Cash, Card or Online first"} className="disabled:opacity-30 w-5 h-5 rounded bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center justify-center flex-shrink-0">＋</button>
+                      <button onClick={incrExpense} disabled={!s.expenseVouchers?.orderPay||!expenseReady(s.expenseVouchers)} title={!expenseReady(s.expenseVouchers)?"Fill in amount, paid to, email or phone, what it was for and the date first":s.expenseVouchers?.orderPay?"":"Choose Cash, Card or Online first"} className="disabled:opacity-30 w-5 h-5 rounded bg-amber-600 hover:bg-amber-700 text-white font-black text-xs flex items-center justify-center flex-shrink-0">＋</button>
                     </div>
                   ) : (
                     <span className="font-bold text-amber-700 text-sm">{s.expenseVouchers?.count||0}</span>
@@ -6972,7 +6996,7 @@ function RotaSheetForm({ onPhoneView, sheet, upSheet, onBack, members, registers
                     const open = (r.orderCount||0) > 0;
                     return (
                       <div className="space-y-1">
-                        <select value={r.orderPay||""} disabled={open||!partyReady(r)} onChange={e=>up({expenseVouchers:{...r,orderPay:e.target.value}})}
+                        <select value={r.orderPay||""} disabled={open||!expenseReady(r)} onChange={e=>up({expenseVouchers:{...r,orderPay:e.target.value}})}
                           title={open ? "Finish this order before changing the payment type" : ""}
                           className={`w-full border rounded-lg px-1.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-200 ${open?"bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200":r.orderPay?"bg-white border-slate-200":"bg-white border-red-300"}`}>
                           <option value="">Choose…</option>
