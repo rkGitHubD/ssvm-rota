@@ -223,6 +223,7 @@ function App() {
   const [itineraries,   setItineraries]   = useState([]);
   const [prasadham,     setPrasadham]     = useState([]);
   const [priests,       setPriests]       = useState([]);
+  const [hundi,         setHundi]         = useState([]);
   const showToast = (msg, type="success") => {
     clearTimeout(toastTimer.current);
     setToast({msg,type});
@@ -244,6 +245,7 @@ function App() {
   const upInventory    = v => { setInventory(v);    DB.set("rota-inventory",    v); };
   const upItineraries  = v => { setItineraries(v);  DB.set("rota-itineraries",  v); };
   const upPrasadham    = v => { setPrasadham(v);    DB.set("rota-prasadham",    v); };
+  const upHundi        = v => { setHundi(v);        DB.set("rota-hundi",        v); };
   const upPriests      = v => { setPriests(v);      DB.set("rota-priests",      v); };
 
   // ── Load all data from Supabase (or localStorage) on mount ────────────────
@@ -282,6 +284,7 @@ function App() {
         setInventory(storedInv);
         setItineraries(storedItin);
     setPrasadham(storedPrasadham);
+    setHundi(LS.get("rota-hundi", []));
     setPriests(storedPriests);
         setDbLoaded(true);
         return;
@@ -317,6 +320,7 @@ function App() {
         setInventory(g("rota-inventory", []));
         setItineraries(g("rota-itineraries", []));
         setPrasadham(g("rota-prasadham", []));
+        setHundi(g("rota-hundi", []));
         setPriests(g("rota-priests", []));
   };
 
@@ -549,10 +553,10 @@ function App() {
         {subTab==="My Requests"  && <VolunteerRequests members={members} rotas={rotas} upRotas={upRotas} allSlots={allSlots} activities={activities} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} currentUser={currentUser} showToast={showToast}/>}
         {subTab==="Services"        && <VolunteerServices sevas={sevas}/>}
         {subTab==="Pooja Itinerary" && <VolunteerItinerary itineraries={itineraries}/>}
-        {subTab==="Master Data"  && <MasterData config={config} upConfig={upConfig} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} members={members} upMembers={upMembers} specials={specials} upSpecials={upSpecials} activities={activities} upActs={upActs} registers={registers} upRegs={upRegs} regEntries={regEntries} showToast={showToast} rotas={rotas} upRotas={upRotas} allSlots={allSlots} cashInHand={cashInHand} upCashInHand={upCashInHand} sevas={sevas} upServices={upServices} sponsorships={sponsorships} upSponsorships={upSponsorships} inventory={inventory} upInventory={upInventory} rotaSheets={rotaSheets} itineraries={itineraries} upItineraries={upItineraries} prasadham={prasadham} upPrasadham={upPrasadham} priests={priests} upPriests={upPriests}/>}
+        {subTab==="Master Data"  && <MasterData config={config} upConfig={upConfig} generalOffers={generalOffers} upGeneralOffers={upGeneralOffers} members={members} upMembers={upMembers} specials={specials} upSpecials={upSpecials} activities={activities} upActs={upActs} registers={registers} upRegs={upRegs} regEntries={regEntries} showToast={showToast} rotas={rotas} upRotas={upRotas} allSlots={allSlots} cashInHand={cashInHand} upCashInHand={upCashInHand} sevas={sevas} upServices={upServices} sponsorships={sponsorships} upSponsorships={upSponsorships} inventory={inventory} upInventory={upInventory} rotaSheets={rotaSheets} itineraries={itineraries} upItineraries={upItineraries} prasadham={prasadham} upPrasadham={upPrasadham} priests={priests} upPriests={upPriests} hundi={hundi} upHundi={upHundi}/>}
         {subTab==="Rota Sheet"   && <RotaSheetTab rotaSheets={rotaSheets} upRotaSheets={upRotaSheets} members={members} registers={registers} upRegs={upRegs} regEntries={regEntries} upRegEntries={upRegEntries} rotas={rotas} config={config} allSlots={allSlots} showToast={showToast} sevas={sevas} sponsorships={sponsorships} inventory={inventory} cashInHand={cashInHand} upCashInHand={upCashInHand} isAdmin={isAdmin} priests={priests} prasadham={prasadham} currentUser={currentUser}/>}
         {subTab==="Settings"     && <Settings config={config} upConfig={upConfig} showToast={showToast}
-    allData={{config,activities,members,rotas,specials,registers,regEntries,rotaSheets,generalOffers,cashInHand,sevas,sponsorships,inventory,itineraries,prasadham,priests}}/>}
+    allData={{config,activities,members,rotas,specials,registers,regEntries,rotaSheets,generalOffers,cashInHand,sevas,sponsorships,inventory,itineraries,prasadham,priests,hundi}}/>}
       </main>
 
       {/* ── Mobile bottom nav — hidden on desktop ── */}
@@ -4635,7 +4639,7 @@ const MD_SECTIONS = [
   { key:"priests",      label:"🔔 Priests",         desc:"Priests & fees" },
 ];
 
-function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, members, upMembers, specials, upSpecials, activities, upActs, registers, upRegs, regEntries, showToast, rotas, upRotas, allSlots, cashInHand, upCashInHand, sevas, upServices, sponsorships, upSponsorships, inventory, upInventory, rotaSheets, itineraries, upItineraries, prasadham, upPrasadham, priests, upPriests }) {
+function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, members, upMembers, specials, upSpecials, activities, upActs, registers, upRegs, regEntries, showToast, rotas, upRotas, allSlots, cashInHand, upCashInHand, sevas, upServices, sponsorships, upSponsorships, inventory, upInventory, rotaSheets, itineraries, upItineraries, prasadham, upPrasadham, priests, upPriests, hundi=[], upHundi }) {
   const [section, setSection] = useState("members");
   return (
     <div className="space-y-5">
@@ -4656,7 +4660,7 @@ function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, me
       {section==="activities"   && <MDActivities  activities={activities} upActs={upActs} members={members} showToast={showToast}/>}
       {section==="registers"    && <MDRegisters   registers={registers} upRegs={upRegs} regEntries={regEntries} members={members} showToast={showToast}/>}
       {section==="cash"         && <MDCashInHand  cashInHand={cashInHand} upCashInHand={upCashInHand} rotaSheets={rotaSheets} showToast={showToast}/>}
-      {section==="finance"      && <MDFinance      rotaSheets={rotaSheets}/>}
+      {section==="finance"      && <MDFinance      rotaSheets={rotaSheets} hundi={hundi} upHundi={upHundi} showToast={showToast}/>}
       {section==="services"        && <MDServices        sevas={sevas} upServices={upServices} showToast={showToast}/>}
       {section==="sponsorships" && <MDSponsorships sponsorships={sponsorships} upSponsorships={upSponsorships} showToast={showToast}/>}
       {section==="inventory"    && <MDInventory    inventory={inventory} upInventory={upInventory} showToast={showToast}/>}
@@ -4668,7 +4672,69 @@ function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, me
 }
 
 // ── MD: Finance ───────────────────────────────────────────────────────────────
-function MDFinance({ rotaSheets=[] }) {
+// ─── Hundi collections: the collection box, counted now and then ─────────────
+function HundiCollections({ hundi, upHundi, showToast, shown }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const blank = { date: today, amount: "", countedBy: "", witness: "", notes: "" };
+  const [form, setForm] = useState(null);       // null, or the entry being added / edited
+  const [delId, setDelId] = useState(null);
+  const ic = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300";
+  const save = () => {
+    const amt = parseFloat(form.amount);
+    if (!form.date || !(amt > 0)) return showToast("Enter the date counted and an amount","error");
+    if (!form.countedBy.trim()) return showToast("Enter who counted it","error");
+    const entry = { ...form, amount: amt.toFixed(2), countedBy: form.countedBy.trim(), witness: form.witness.trim(), notes: form.notes.trim(), at: new Date().toISOString() };
+    upHundi(form.id ? hundi.map(h => h.id === form.id ? entry : h) : [...hundi, { ...entry, id: uid() }]);
+    showToast(form.id ? "Hundi count updated" : "Hundi count added"); setForm(null);
+  };
+  const list = shown.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const total = shown.reduce((t, h) => t + parseFloat(h.amount || 0), 0);
+  return (
+    <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm p-5 space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">🏺 Hundi collections</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Cash from the hundi, counted now and then. Each count is added to income and the balance sheet.</p>
+        </div>
+        <div className="text-right"><div className="text-xs text-slate-400">Total shown</div><div className="text-lg font-black text-emerald-700">£{total.toFixed(2)}</div></div>
+        {!form && <button onClick={()=>setForm(blank)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold">+ Add hundi count</button>}
+      </div>
+      {form && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 grid sm:grid-cols-2 gap-2">
+          <label className="text-xs font-semibold text-slate-600">Date counted *<input type="date" value={form.date} max={today} onChange={e=>setForm({...form,date:e.target.value})} className={ic}/></label>
+          <label className="text-xs font-semibold text-slate-600">Amount £ *<input type="number" min="0" step="0.01" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})} placeholder="0.00" className={ic}/></label>
+          <label className="text-xs font-semibold text-slate-600">Counted by *<input value={form.countedBy} onChange={e=>setForm({...form,countedBy:e.target.value})} placeholder="Names" className={ic}/></label>
+          <label className="text-xs font-semibold text-slate-600">Witnessed by<input value={form.witness} onChange={e=>setForm({...form,witness:e.target.value})} placeholder="Name" className={ic}/></label>
+          <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Notes<input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="e.g. Banked on Monday" className={ic}/></label>
+          <div className="sm:col-span-2 flex gap-2">
+            <button onClick={save} className="flex-1 bg-emerald-600 text-white rounded-lg py-2 text-sm font-bold hover:bg-emerald-700">{form.id ? "Save changes" : "Add"}</button>
+            <button onClick={()=>setForm(null)} className="flex-1 bg-white border border-slate-200 text-slate-600 rounded-lg py-2 text-sm font-medium">Cancel</button>
+          </div>
+        </div>
+      )}
+      {list.length === 0 ? <p className="text-sm text-slate-400">No hundi counts{hundi.length ? " in this period" : " yet"}.</p> : (
+        <div className="divide-y divide-slate-100">
+          {list.map(h => (
+            <div key={h.id} className="py-2 flex items-center gap-3 text-sm flex-wrap">
+              <span className="w-24 font-medium text-slate-700">{new Date(h.date+"T12:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</span>
+              <span className="flex-1 min-w-0 text-slate-500 truncate">Counted by {h.countedBy}{h.witness ? " · witness "+h.witness : ""}{h.notes ? " · "+h.notes : ""}</span>
+              <span className="font-bold text-emerald-700">£{parseFloat(h.amount).toFixed(2)}</span>
+              {delId === h.id ? (
+                <span className="flex gap-2"><button onClick={()=>{ upHundi(hundi.filter(x => x.id !== h.id)); setDelId(null); showToast("Hundi count removed"); }} className="text-xs bg-red-600 text-white px-2 py-1 rounded">Remove</button>
+                  <button onClick={()=>setDelId(null)} className="text-xs text-slate-500">Keep</button></span>
+              ) : (
+                <span className="flex gap-2"><button onClick={()=>setForm({ ...blank, ...h })} className="text-xs text-indigo-600">Edit</button>
+                  <button onClick={()=>setDelId(h.id)} className="text-xs text-red-500">Remove</button></span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MDFinance({ rotaSheets=[], hundi=[], upHundi, showToast }) {
   var closed = rotaSheets.filter(function(s){return s.status==="closed";});
   var [filterMonth, setFilterMonth] = React.useState("all");
 
@@ -4681,7 +4747,14 @@ function MDFinance({ rotaSheets=[] }) {
     var label = d.toLocaleDateString("en-GB",{month:"long",year:"numeric"});
     if (!seenMonths[key]){ seenMonths[key]=true; months.push({key,label}); }
   });
+  hundi.forEach(function(h){
+    var d = new Date(h.date+"T12:00:00");
+    var key = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");
+    if (!seenMonths[key]){ seenMonths[key]=true; months.push({key, label:d.toLocaleDateString("en-GB",{month:"long",year:"numeric"})}); }
+  });
   months.sort(function(a,b){return a.key.localeCompare(b.key);});
+  var hundiShown = filterMonth==="all" ? hundi : hundi.filter(function(h){ return (h.date||"").slice(0,7)===filterMonth; });
+  var hundiCounted = hundiShown.reduce(function(t,h){return t+parseFloat(h.amount||0);},0);
 
   var filtered = filterMonth==="all" ? closed : closed.filter(function(s){
     var d = new Date(s.date);
@@ -4696,7 +4769,7 @@ function MDFinance({ rotaSheets=[] }) {
   // Income components
   var totalArchana   = sum(sorted, function(s){return parseFloat((s.archanaTickets&&s.archanaTickets.amount)||0);});
   var totalDonations = sum(sorted, function(s){return parseFloat((s.donationBook&&s.donationBook.amount)||0);});
-  var totalHundi     = sum(sorted, function(s){return parseFloat((s.hundi&&s.hundi.amount)||0);});
+  var totalHundi     = sum(sorted, function(s){return parseFloat((s.hundi&&s.hundi.amount)||0);}) + hundiCounted;
   var totalIncome    = totalArchana + totalDonations + totalHundi;
   var totalExpenses  = sum(sorted, function(s){return parseFloat((s.expenseVouchers&&s.expenseVouchers.amount)||0);});
   var netRevenue     = totalIncome - totalExpenses;
@@ -4706,7 +4779,7 @@ function MDFinance({ rotaSheets=[] }) {
     return parseFloat((s.archanaTickets&&s.archanaTickets.cashAmount)||0)
          + parseFloat((s.donationBook&&s.donationBook.cashAmount)||0)
          + parseFloat((s.hundi&&s.hundi.amount)||0);
-  });
+  }) + hundiCounted;
   var sumupIncome = sum(sorted, function(s){
     return parseFloat((s.archanaTickets&&s.archanaTickets.sumupAmount)||0)
          + parseFloat((s.donationBook&&s.donationBook.sumupAmount)||0);
@@ -4720,11 +4793,15 @@ function MDFinance({ rotaSheets=[] }) {
 
   var running = 0;
 
-  if (closed.length === 0) return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-      <div className="text-5xl mb-3">📊</div>
-      <p className="font-semibold text-slate-500">No closed rota sheets yet</p>
-      <p className="text-sm text-slate-400 mt-1">Financial data appears once sheets are closed</p>
+  var hundiPanel = <HundiCollections hundi={hundi} upHundi={upHundi} showToast={showToast} shown={hundiShown}/>;
+  if (closed.length === 0 && hundi.length === 0) return (
+    <div className="space-y-5">
+      {hundiPanel}
+      <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+        <div className="text-5xl mb-3">📊</div>
+        <p className="font-semibold text-slate-500">No closed rota sheets yet</p>
+        <p className="text-sm text-slate-400 mt-1">Financial data appears once sheets are closed</p>
+      </div>
     </div>
   );
 
@@ -4748,12 +4825,14 @@ function MDFinance({ rotaSheets=[] }) {
         </div>
       </div>
 
+      {hundiPanel}
+
       {/* KPI summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-emerald-600 text-white rounded-2xl p-4">
           <div className="text-xs font-semibold text-emerald-100 mb-1">💰 Total Income</div>
           <div className="text-2xl font-black">{fmt(totalIncome)}</div>
-          <div className="text-emerald-200 text-xs mt-1">{sorted.length} session{sorted.length!==1?"s":""}</div>
+          <div className="text-emerald-200 text-xs mt-1">{sorted.length} session{sorted.length!==1?"s":""}{hundiShown.length ? " · "+hundiShown.length+" hundi count"+(hundiShown.length!==1?"s":"") : ""}</div>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
           <div className="text-xs font-semibold text-red-500 mb-1">🧾 Total Expenses</div>
@@ -4794,7 +4873,7 @@ function MDFinance({ rotaSheets=[] }) {
                 <td className={"py-2 text-right font-bold "+(cashIncome-cashExp>=0?"text-indigo-700":"text-amber-600")}>{fmt(cashIncome-cashExp)}</td>
               </tr>
               <tr className="border-b border-slate-50">
-                <td className="py-2 font-medium text-slate-700">📱 SumUp</td>
+                <td className="py-2 font-medium text-slate-700">💳 Card</td>
                 <td className="py-2 text-right text-emerald-700 font-semibold">{fmt(sumupIncome)}</td>
                 <td className="py-2 text-right text-slate-400 text-xs">{totalIncome>0?Math.round(sumupIncome/totalIncome*100):0}%</td>
                 <td className="py-2 text-right text-slate-300">—</td>
@@ -4823,7 +4902,7 @@ function MDFinance({ rotaSheets=[] }) {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">📒 Balance Sheet — Session by Session</h3>
-          <span className="text-xs text-slate-400">{sorted.length} sessions</span>
+          <span className="text-xs text-slate-400">{sorted.length} sessions{hundiShown.length ? " · "+hundiShown.length+" hundi counts" : ""}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -4841,7 +4920,29 @@ function MDFinance({ rotaSheets=[] }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map(function(s){
+              {sorted.map(function(s){ return { kind:"sheet", date:s.date, s:s }; })
+                .concat(hundiShown.map(function(h){ return { kind:"hundi", date:h.date+"T12:00:00", h:h }; }))
+                .sort(function(a,b){ return new Date(a.date)-new Date(b.date); })
+                .map(function(row){
+                if (row.kind==="hundi") {
+                  var amt = parseFloat(row.h.amount||0);
+                  running += amt;
+                  var snap = running;
+                  return (
+                    <tr key={"h"+row.h.id} className="border-b border-slate-50 bg-emerald-50 bg-opacity-50">
+                      <td className="px-4 py-2 font-medium text-slate-700 whitespace-nowrap">{new Date(row.date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"2-digit"})}</td>
+                      <td className="px-4 py-2 text-emerald-700 whitespace-nowrap hidden md:table-cell">🏺 Hundi count</td>
+                      <td className="px-3 py-2 text-right text-slate-300">—</td>
+                      <td className="px-3 py-2 text-right text-slate-300 hidden md:table-cell">—</td>
+                      <td className="px-3 py-2 text-right text-slate-600 whitespace-nowrap hidden md:table-cell">{fmt(amt)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-700 whitespace-nowrap">{fmt(amt)}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">—</td>
+                      <td className="px-3 py-2 text-right font-semibold text-indigo-600 whitespace-nowrap">{fmt(amt)}</td>
+                      <td className={"px-4 py-2 text-right font-black whitespace-nowrap "+(snap>=0?"text-slate-800":"text-red-600")}>{fmt(snap)}</td>
+                    </tr>
+                  );
+                }
+                var s = row.s;
                 var arch = parseFloat((s.archanaTickets&&s.archanaTickets.amount)||0);
                 var don  = parseFloat((s.donationBook&&s.donationBook.amount)||0);
                 var hun  = parseFloat((s.hundi&&s.hundi.amount)||0);
@@ -6385,7 +6486,7 @@ function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } =
   h += "<h2>Money taken</h2><table><tr><th>Register</th><th>Numbers</th><th class='n'>Count</th><th class='n'>Cash</th><th class='n'>Card</th><th class='n'>Online</th><th class='n'>Total</th></tr>"
     + regRow("Archana" + (at.dayType === "special" ? " (£5)" : " (£3)"), at, at.ticketCount)
     + regRow("Donations", db, db.count)
-    + "<tr><td><b>Hundi</b></td><td>—</td><td class='n'>—</td><td class='n'>" + gbp(hundi) + "</td><td class='n'>£0.00</td><td class='n'>£0.00</td><td class='n'><b>" + gbp(hundi) + "</b></td></tr>"
+    + (hundi > 0 ? "<tr><td><b>Hundi</b></td><td>—</td><td class='n'>—</td><td class='n'>" + gbp(hundi) + "</td><td class='n'>£0.00</td><td class='n'>£0.00</td><td class='n'><b>" + gbp(hundi) + "</b></td></tr>" : "")
     + "<tr class='t'><td colspan='3'>Income</td><td class='n'>" + gbp(cashIn) + "</td><td class='n'>" + gbp(inBy.sumup) + "</td><td class='n'>" + gbp(inBy.online) + "</td><td class='n'>" + gbp(income) + "</td></tr>"
     + regRow("Expenses (out)", ev, ev.count)
     + "<tr class='t'><td colspan='3'>Net (income − expenses)</td><td class='n'>" + gbp(cashIn - cashOut) + "</td><td class='n'>" + gbp(card) + "</td><td class='n'>" + gbp(online) + "</td><td class='n'>" + gbp(net) + "</td></tr></table>";
@@ -6410,7 +6511,7 @@ function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } =
   h += "<div class='grid' style='grid-template-columns:2fr 1fr 1fr;margin-top:4px'>"
     + "<div class='box'><div class='l'>Cash check</div><table>"
     + "<tr><td>Opening balance</td><td class='n'>" + gbp(s.openingBalance) + "</td></tr>"
-    + "<tr><td>+ Cash in (Archana, Donations, Hundi)</td><td class='n'>" + gbp(cashIn) + "</td></tr>"
+    + "<tr><td>+ Cash in (Archana, Donations" + (hundi > 0 ? ", Hundi" : "") + ")</td><td class='n'>" + gbp(cashIn) + "</td></tr>"
     + "<tr><td>− Cash expenses</td><td class='n'>" + gbp(cashOut) + "</td></tr>"
     + "<tr class='t'><td>Expected cash</td><td class='n'>" + gbp(expected) + "</td></tr>"
     + "<tr><td>Counted (denominations)</td><td class='n'>" + gbp(counted) + "</td></tr>"
@@ -7182,15 +7283,6 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         onPerAmt={function(v){up({expenseVouchers:{...ev,perAmount:v}});}}
       />
 
-      {/* Hundi */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
-        <span className="font-semibold text-slate-700 flex-1">🪣 Hundi (cash)</span>
-        <span className="text-slate-400">£</span>
-        <input type="number" value={(s.hundi&&s.hundi.amount)||""} onChange={function(e){up({hundi:{amount:e.target.value}});}}
-          placeholder="0.00" disabled={isClosed}
-          className="w-24 border border-slate-200 rounded-xl px-3 py-2 text-right font-bold focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
-      </div>
-
       {/* Denomination table */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-3">
@@ -7839,28 +7931,12 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
                 </div>
               </div>
 
-              {/* Hundi row */}
-              <div className="grid items-center border-b border-slate-100" style={{gridTemplateColumns:"3fr 1.2fr 1fr 1.2fr 1.2fr"}}>
-                <div className="px-3 py-3">
-                  <div className="font-semibold text-sm text-slate-700">🏺 Hundi</div>
-                  <div className="text-xs text-slate-400 mt-0.5">Collection box</div>
-                </div>
-                <div className="px-2 py-3"></div>
-                <div className="px-2 py-3"></div>
-                <div className="px-2 py-3"></div>
-                <div className="px-2 py-3">
-                  <input type="text" inputMode="decimal" value={s.hundi?.amount||""} disabled={isClosed}
-                    onChange={e=>up({hundi:{...s.hundi,amount:e.target.value}})}
-                    className={`w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm text-right font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 ${isClosed?"bg-slate-50 text-slate-500":"bg-white"}`}/>
-                </div>
-              </div>
-
               {/* Expected Cash in Hand footer */}
               <div className="flex-1"></div>
               <div className="flex items-center bg-slate-700 text-white">
                 <div className="flex-1 px-3 py-2.5">
                   <div className="font-semibold text-sm">Expected Cash in Hand</div>
-                  <div className="text-xs text-slate-300 mt-0.5">Opening + cash income (Archana + Donation + Hundi) − expenses · must match closing balance →</div>
+                  <div className="text-xs text-slate-300 mt-0.5">Opening + cash income (Archana + Donations) − cash expenses · must match closing balance →</div>
                 </div>
                 <div className="px-4 py-2.5 text-right flex-shrink-0">
                   <div className="font-black text-xl">£{calcExpected()}</div>
@@ -7948,7 +8024,7 @@ function RotaSheetForm({ rotaSheets=[], onPhoneView, sheet, upSheet, onBack, mem
                       <div className="flex justify-between text-slate-500"><span>Opening</span><span className="font-medium text-slate-700">£{parseFloat(s.openingBalance||0).toFixed(2)}</span></div>
                       <div className="flex justify-between text-slate-500"><span>Archanai</span><span>£{archCash.toFixed(2)}</span></div>
                       <div className="flex justify-between text-slate-500"><span>Donation</span><span>£{donCash.toFixed(2)}</span></div>
-                      <div className="flex justify-between text-slate-500"><span>Hundi</span><span>£{hundiAmt.toFixed(2)}</span></div>
+                      {hundiAmt > 0 && <div className="flex justify-between text-slate-500"><span>Hundi</span><span>£{hundiAmt.toFixed(2)}</span></div>}
                       <div className="flex justify-between text-slate-500"><span>Expenses</span><span className="text-red-500">−£{expCash.toFixed(2)}</span></div>
                       <div className="flex justify-between pt-1 border-t border-slate-200 font-bold">
                         <span className="text-slate-600">Expected</span>
@@ -8338,6 +8414,7 @@ function DataToolsPanel({ showToast, allData }) {
     "rota-inventory":    allData.inventory,
     "rota-itineraries":  allData.itineraries,
     "rota-prasadham":    allData.prasadham,
+    "rota-hundi":        allData.hundi,
     "rota-priests":      allData.priests,
   };
 
