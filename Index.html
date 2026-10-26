@@ -4624,6 +4624,11 @@ function MDInventory({ inventory, upInventory, showToast }) {
   );
 }
 
+// Master Data menu groups
+const MD_GROUPS = [
+  { label:"📅 Rota Admin",   keys:["members","assignments","activities","registers","cash"] },
+  { label:"🛕 Temple Admin", keys:["finance","services","sponsorships","inventory","itinerary","prasadham","priests"] },
+];
 const MD_SECTIONS = [
   { key:"members",      label:"👥 Members",        desc:"Volunteers & roles" },
   { key:"assignments",  label:"📅 Assignments",    desc:"Assign to rota weeks" },
@@ -4643,16 +4648,24 @@ function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, me
   const [section, setSection] = useState("members");
   return (
     <div className="space-y-5">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2 flex flex-wrap gap-1.5">
-        {MD_SECTIONS.map(s=>(
-          <button key={s.key} onClick={()=>setSection(s.key)}
-            className={`px-3 py-2 rounded-xl text-sm font-semibold transition-all
-              ${section===s.key?"bg-indigo-600 text-white shadow-sm":"text-slate-600 hover:bg-slate-100"}`}>
-            {s.label}
-            {s.key==="assignments" && (generalOffers||[]).filter(o=>isSwap(o)&&o.status==="pending").length>0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-xs font-bold px-1.5 rounded-full">{(generalOffers||[]).filter(o=>isSwap(o)&&o.status==="pending").length}</span>
-            )}
-          </button>
+      {/* Sections in two groups: running the rota, and the rest of temple admin */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2 space-y-2">
+        {MD_GROUPS.map(g => (
+          <div key={g.label} className="flex flex-col md:flex-row md:items-center gap-1.5">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider md:w-36 whitespace-nowrap flex-shrink-0 px-2">{g.label}</div>
+            <div className="flex flex-wrap gap-1.5 flex-1">
+              {MD_SECTIONS.filter(s => g.keys.includes(s.key)).map(s=>(
+                <button key={s.key} onClick={()=>setSection(s.key)}
+                  className={`px-3 py-2 rounded-xl text-sm font-semibold transition-all
+                    ${section===s.key?"bg-indigo-600 text-white shadow-sm":"text-slate-600 hover:bg-slate-100"}`}>
+                  {s.label}
+                  {s.key==="assignments" && (generalOffers||[]).filter(o=>isSwap(o)&&o.status==="pending").length>0 && (
+                    <span className="ml-1.5 bg-red-500 text-white text-xs font-bold px-1.5 rounded-full">{(generalOffers||[]).filter(o=>isSwap(o)&&o.status==="pending").length}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
       {section==="members"      && <MDMembers     members={members} upMembers={upMembers} showToast={showToast}/>}
