@@ -30,8 +30,12 @@ npx --yes tailwindcss@3.4.17 -i build/tw.css -o build/tailwind.css --content bui
 
 # 4. Assemble the final page
 python3 - <<'PY'
+import hashlib, json
 css = open("build/tailwind.css", encoding="utf-8").read() + open("build/custom.css", encoding="utf-8").read()
 js = open("build/app.js", encoding="utf-8").read().replace("</script", "<\\/script")
+# Build id from the page's content: the app compares it with docs/version.json to offer updates
+build = hashlib.sha1((css + js).encode("utf-8")).hexdigest()[:12]
+open("docs/version.json", "w", encoding="utf-8").write(json.dumps({"build": build}))
 html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,6 +56,7 @@ html = f"""<!DOCTYPE html>
 </head>
 <body class="bg-slate-50">
 <div id="root"></div>
+<script>window.APP_BUILD = "{build}";</script>
 <script>{js}</script>
 </body>
 </html>

@@ -188,6 +188,34 @@ function Toast({ msg, type }) {
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
+// ─── "New version" notice ────────────────────────────────────────────────────
+// The published page carries its build id (window.APP_BUILD) and docs/version.json holds
+// the newest one. Checked when the app comes back into view and every 10 minutes; a
+// small pill above the bottom bar offers to reload when they differ.
+function UpdateNotice() {
+  const [fresh, setFresh] = useState(false);
+  useEffect(() => {
+    if (!window.APP_BUILD) return;   // not the published page (e.g. opened from a file)
+    const check = () => fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+      .then(r => r.ok ? r.json() : null)
+      .then(v => { if (v && v.build && v.build !== window.APP_BUILD) setFresh(true); })
+      .catch(() => {});
+    const onShow = () => { if (document.visibilityState === "visible") check(); };
+    check();
+    const t = setInterval(check, 10 * 60 * 1000);
+    document.addEventListener("visibilitychange", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); };
+  }, []);
+  if (!fresh) return null;
+  return (
+    <button onClick={() => window.location.reload()}
+      className="fixed left-1/2 -translate-x-1/2 bottom-24 md:bottom-4 z-50 bg-slate-800 text-white text-xs font-semibold rounded-full pl-3 pr-1 py-1 shadow-lg flex items-center gap-2 fade-in">
+      New version available
+      <span className="bg-white text-slate-800 rounded-full px-2 py-0.5">Update</span>
+    </button>
+  );
+}
+
 function App() {
   // ── DB loading state ──────────────────────────────────────────────────────
   const [dbLoaded,  setDbLoaded]  = useState(false);
@@ -9564,7 +9592,7 @@ function MDItinerary({ itineraries, upItineraries, showToast }) {
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
-    root.render(<App/>);
+    root.render(<><App/><UpdateNotice/></>);
 </script>
 </body>
 </html>
