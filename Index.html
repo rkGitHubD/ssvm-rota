@@ -4626,8 +4626,8 @@ function MDInventory({ inventory, upInventory, showToast }) {
 
 // Master Data menu groups
 const MD_GROUPS = [
-  { label:"📅 Rota Admin",   keys:["members","assignments","activities","registers","cash"] },
-  { label:"🛕 Temple Admin", keys:["finance","services","sponsorships","inventory","itinerary","prasadham","priests"] },
+  { label:"📅 Rota Admin",   style:"text-indigo-700 border-indigo-400", keys:["members","assignments","activities","registers","cash"] },
+  { label:"🛕 Temple Admin", style:"text-amber-700 border-amber-400",  keys:["finance","services","sponsorships","inventory","itinerary","prasadham","priests"] },
 ];
 const MD_SECTIONS = [
   { key:"members",      label:"👥 Members",        desc:"Volunteers & roles" },
@@ -4650,9 +4650,9 @@ function MasterData({ config={}, upConfig, generalOffers=[], upGeneralOffers, me
     <div className="space-y-5">
       {/* Sections in two groups: running the rota, and the rest of temple admin */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-2 space-y-2">
-        {MD_GROUPS.map(g => (
-          <div key={g.label} className="flex flex-col md:flex-row md:items-center gap-1.5">
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider md:w-36 whitespace-nowrap flex-shrink-0 px-2">{g.label}</div>
+        {MD_GROUPS.map((g, gi) => (
+          <div key={g.label} className={"flex flex-col md:flex-row md:items-center gap-1.5 "+(gi ? "pt-2 border-t border-slate-100" : "")}>
+            <div className="md:w-36 flex-shrink-0 px-2"><span className={"text-xs font-extrabold uppercase tracking-wider whitespace-nowrap border-b-2 pb-0.5 "+g.style}>{g.label}</span></div>
             <div className="flex flex-wrap gap-1.5 flex-1">
               {MD_SECTIONS.filter(s => g.keys.includes(s.key)).map(s=>(
                 <button key={s.key} onClick={()=>setSection(s.key)}
@@ -5006,6 +5006,8 @@ function MDMembers({ members, upMembers, showToast }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [confirmDel, setConfirmDel] = useState(null);
+  const [listOpen, setListOpen] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
 
   const filtered = members
     .filter(m => roleFilter==="all" || m.role===roleFilter)
@@ -5027,19 +5029,23 @@ function MDMembers({ members, upMembers, showToast }) {
     setForm(blank);
   };
   const remove = id => { upMembers(members.filter(m=>m.id!==id)); showToast("Member removed"); setConfirmDel(null); if(editId===id){setEditId(null);setForm(blank);} };
-  const edit   = m  => { setEditId(m.id); setForm({name:m.name,email:m.email||"",phone:m.phone||"",pin:"",role:m.role,isAdmin:!!m.isAdmin,notes:m.notes||""}); };
+  const edit   = m  => { setFormOpen(true); setEditId(m.id); setForm({name:m.name,email:m.email||"",phone:m.phone||"",pin:"",role:m.role,isAdmin:!!m.isAdmin,notes:m.notes||""}); };
   const cancel = () => { setEditId(null); setForm(blank); };
   const primary=members.filter(m=>m.role==="primary").length;
   const secondary=members.filter(m=>m.role==="secondary").length;
 
   return (
     <div className="grid md:grid-cols-5 gap-6">
-      <div className="md:col-span-2">
+      <div className="md:col-span-2 order-2">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sticky top-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-bold text-slate-800 text-base">{editId?"✏️ Edit Member":"➕ Add Member"}</h2>
-            {editId && <button onClick={cancel} className="text-xs text-slate-400 hover:text-slate-600">✕ Cancel</button>}
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={()=>{ if (editId) cancel(); setFormOpen(!(formOpen || editId)); }} className="flex-1 flex items-center gap-2 text-left">
+              <h2 className="font-bold text-slate-800 text-base">{editId?"✏️ Edit Member":"➕ Add Member"}</h2>
+              <span className={"ml-auto text-slate-400 text-xs transition-transform "+((formOpen||editId)?"rotate-90":"")}>▶</span>
+            </button>
+            {editId && <button onClick={()=>{ cancel(); setFormOpen(false); }} className="text-xs text-slate-400 hover:text-slate-600">✕ Cancel</button>}
           </div>
+          {(formOpen || editId) && (<>
           <Field label="Full Name *"  value={form.name}  onChange={v=>setForm({...form,name:v})}  placeholder="e.g. Priya Sharma"/>
           <Field label="Email"        type="email" value={form.email} onChange={v=>setForm({...form,email:v})} placeholder="priya@example.com"/>
           <Field label="Phone"        value={form.phone} onChange={v=>setForm({...form,phone:v})} placeholder="+44 7700 900000"/>
@@ -5069,14 +5075,18 @@ function MDMembers({ members, upMembers, showToast }) {
           <button onClick={save} className="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold hover:bg-indigo-700">
             {editId?"Save Changes":"Add Member"}
           </button>
-          <div className="flex gap-2 pt-1 border-t border-slate-100">
-            <div className="flex-1 bg-indigo-50 rounded-xl p-2 text-center"><div className="text-lg font-bold text-indigo-700">{primary}</div><div className="text-xs text-indigo-500">Rota Leads</div></div>
-            <div className="flex-1 bg-violet-50 rounded-xl p-2 text-center"><div className="text-lg font-bold text-violet-700">{secondary}</div><div className="text-xs text-violet-500">Secondary</div></div>
-            <div className="flex-1 bg-slate-50 rounded-xl p-2 text-center"><div className="text-lg font-bold text-slate-700">{members.length}</div><div className="text-xs text-slate-500">Total</div></div>
-          </div>
+          </>)}
         </div>
       </div>
-      <div className="md:col-span-3 space-y-3">
+      <div className="md:col-span-3 order-1 space-y-3">
+        <button onClick={()=>setListOpen(!listOpen)} className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-3 text-left">
+          <h2 className="font-bold text-slate-800 text-base flex-1">👥 Members</h2>
+          <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg font-semibold">{primary} Rota Leads</span>
+          <span className="text-xs bg-violet-50 text-violet-700 px-2 py-1 rounded-lg font-semibold">{secondary} Secondary</span>
+          <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-lg font-semibold">{members.length} total</span>
+          <span className={"text-slate-400 text-xs transition-transform "+(listOpen?"rotate-90":"")}>▶</span>
+        </button>
+        {listOpen && (<>
         <div className="flex gap-2 flex-wrap items-center">
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name, email, phone…"
             className="flex-1 min-w-0 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"/>
@@ -5126,6 +5136,7 @@ function MDMembers({ members, upMembers, showToast }) {
             ))}
           </div>
         )}
+        </>)}
       </div>
       {confirmDel && (
         <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4" onClick={()=>setConfirmDel(null)}>
