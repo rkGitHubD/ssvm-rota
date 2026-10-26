@@ -5083,7 +5083,7 @@ function MDMembers({ members, upMembers, showToast }) {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [confirmDel, setConfirmDel] = useState(null);
-  const [listOpen, setListOpen] = useState(true);
+  const [listOpen, setListOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
 
   const filtered = members
@@ -5118,7 +5118,7 @@ function MDMembers({ members, upMembers, showToast }) {
           <div className="flex items-center justify-between gap-2">
             <button onClick={()=>{ if (editId) cancel(); setFormOpen(!(formOpen || editId)); }} className="flex-1 flex items-center gap-2 text-left">
               <h2 className="font-bold text-slate-800 text-base">{editId?"✏️ Edit Member":"➕ Add Member"}</h2>
-              <span className={"ml-auto text-slate-400 text-xs transition-transform "+((formOpen||editId)?"rotate-90":"")}>▶</span>
+              <span className={"ml-auto text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap "+((formOpen||editId)?"bg-slate-100 text-slate-600":"bg-indigo-600 text-white")}>{(formOpen||editId) ? "Hide ▲" : "Open ▼"}</span>
             </button>
             {editId && <button onClick={()=>{ cancel(); setFormOpen(false); }} className="text-xs text-slate-400 hover:text-slate-600">✕ Cancel</button>}
           </div>
@@ -5161,7 +5161,7 @@ function MDMembers({ members, upMembers, showToast }) {
           <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg font-semibold whitespace-nowrap">{primary} Rota Leads</span>
           <span className="text-xs bg-violet-50 text-violet-700 px-2 py-1 rounded-lg font-semibold whitespace-nowrap">{secondary} Secondary</span>
           <span className="text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded-lg font-semibold whitespace-nowrap">{members.length} total</span>
-          <span className={"text-slate-400 text-xs transition-transform "+(listOpen?"rotate-90":"")}>▶</span>
+          <span className={"ml-auto text-xs font-bold px-3 py-1.5 rounded-lg whitespace-nowrap "+(listOpen?"bg-slate-100 text-slate-600":"bg-indigo-600 text-white")}>{listOpen ? "Hide ▲" : "Show ▼"}</span>
         </button>
         {listOpen && (<>
         <div className="flex gap-2 flex-wrap items-center">
