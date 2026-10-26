@@ -8605,6 +8605,7 @@ function Settings({ config, upConfig, showToast, allData }) {
       <Foldable icon="🔧" title="Data Tools" note="Backup download and one-time migration">
         <DataToolsPanel showToast={showToast} allData={allData}/>
       </Foldable>
+      <p className="text-center text-xs text-slate-400">App version {window.APP_BUILD || "local"}</p>
     </div>
   );
 }
