@@ -5835,7 +5835,7 @@ function printRotaSchedule(year, opts = {}) {
     else h += "<div class='cont'>" + title + " — Rota schedule " + year + " (continued)</div>";
     h += "<table>" + head + "<tbody>" + (pg.join("") || "<tr><td colspan='6' class='c'>No rota weeks for " + year + "</td></tr>") + "</tbody></table>";
     if (i === pages.length - 1) h += "<div class='key'><span class='ok'>Confirmed</span><span class='tbc'>TBC — To be confirmed</span><span style='background:#475569;color:#fff'>Done — Rota Completed</span><span>★ Special occasion</span></div>"
-      + "<div class='swapnote'>🔁 <b>Need to swap your week?</b> Log in to the app" + (appUrl ? " (" + esc(appUrl) + ")" : "") + " and request a swap from <b>Volunteer → My Requests</b>.</div>";
+      + "<div class='swapnote'>🔁 <b>Need to swap your week?</b> Log in to the app" + (appUrl ? " (" + esc(appUrl) + ")" : "") + " and request a swap from <b>Volunteer → My Requests</b>." + (orgContact(config) ? " Questions: " + esc(orgContact(config)) + "." : "") + "</div>";
     h += "<div class='foot'><span>Printed " + new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }) + "</span><span>Page " + (i + 1) + " of " + pages.length + "</span></div></div>";
   });
   if (opts.htmlOnly) return h + "</body></html>";
@@ -6598,7 +6598,7 @@ function printRotaSheet(s, { config = {}, rotaSheets = [], sponsorships = [] } =
   // Header
   h += "<div class='hd'>" + (config.logo ? "<img src='" + config.logo + "'/>" : "")
     + "<div><div class='org'>" + esc(config.fullName || config.orgName || "") + "</div>"
-    + "<div class='sub'>" + (config.charityNo ? "Registered Charity No. " + esc(config.charityNo) + " · " : "") + "Rota Sheet · "
+    + "<div class='sub'>" + (orgContact(config) ? esc(orgContact(config)) + "<br/>" : "") + (config.charityNo ? "Registered Charity No. " + esc(config.charityNo) + " · " : "") + "Rota Sheet · "
     + new Date(s.date).toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" }) + "</div></div>"
     + "<div class='badge'><span style='" + (closed ? "background:#dcfce7;color:#166534" : "background:#fef3c7;color:#92400e") + "'>" + (closed ? "CLOSED" : "OPEN — DRAFT") + "</span>"
     + "<div class='sub' style='margin-top:2px'>Open " + dash(s.openingTime) + " · Close " + dash(s.closingTime) + "</div></div></div>";
@@ -8670,6 +8670,28 @@ function Settings({ config, upConfig, showToast, allData }) {
             <Field label="Duration (hours)" type="number" value={form.duration} onChange={v=>setForm({...form,duration:Number(v)})}/>
             <Field label="Rota Year"         type="number" value={form.year}     onChange={v=>setForm({...form,year:Number(v)})}/>
           </div>
+          {/* Contact: shown to members on Book Pooja and in booking confirmations */}
+          <div className="pt-3 border-t border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-700 mb-2">📞 Contact</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="Contact person" value={form.contactPerson||""} onChange={v=>setForm({...form,contactPerson:v})} placeholder="e.g. Temple secretary"/>
+              <Field label="Phone" value={form.contactPhone||""} onChange={v=>setForm({...form,contactPhone:v})} placeholder="01908 000000"/>
+              <Field label="Email" type="email" value={form.contactEmail||""} onChange={v=>setForm({...form,contactEmail:v})} placeholder="info@example.org"/>
+            </div>
+          </div>
+          {/* Bank details: for donations and bookings paid online */}
+          <div className="pt-3 border-t border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-700 mb-1">🏦 Bank details for donations</h3>
+            <p className="text-xs text-slate-400 mb-2">Shown to members on Book Pooja and in booking confirmations, so they can pay online.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Account name" value={form.bankAccountName||""} onChange={v=>setForm({...form,bankAccountName:v})} placeholder="As shown on the account"/>
+              <Field label="Bank" value={form.bankName||""} onChange={v=>setForm({...form,bankName:v})} placeholder="e.g. Lloyds"/>
+              <Field label="Sort code" value={form.bankSortCode||""} onChange={v=>setForm({...form,bankSortCode:v})} placeholder="12-34-56"/>
+              <Field label="Account number" value={form.bankAccountNo||""} onChange={v=>setForm({...form,bankAccountNo:v})} placeholder="12345678"/>
+            </div>
+            {form.bankSortCode && form.bankSortCode.replace(/\D/g,"").length !== 6 && <p className="text-xs text-amber-600 mt-1">A UK sort code has 6 digits.</p>}
+            {form.bankAccountNo && form.bankAccountNo.replace(/\D/g,"").length !== 8 && <p className="text-xs text-amber-600 mt-1">A UK account number has 8 digits.</p>}
+          </div>
           <button onClick={save} className="bg-indigo-600 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 shadow-sm">Save Settings</button>
         </div>
       </div>
@@ -9393,6 +9415,9 @@ function Field({ label, value, onChange, placeholder, type="text" }) {
 //     gothram, nakshatram, notes, status:"pending"|"accepted"|"declined"|"cancelled",
 //     createdAt, resolvedAt, adminNote }
 const isBooking = o => o && o.type === "booking";
+// The organisation's contact and bank details from Settings, as short lines of text
+const orgContact = c => [c.contactPerson, c.contactPhone, c.contactEmail].filter(Boolean).join(" · ");
+const orgBank = c => c.bankAccountNo ? [c.bankAccountName, c.bankName, c.bankSortCode && "sort code " + c.bankSortCode, "account " + c.bankAccountNo].filter(Boolean).join(", ") : "";
 const OCCASIONS = ["Birthday","Wedding anniversary","House warming","New vehicle","Exam / new job","In memory of a loved one","Festival","Other"];
 const bookingDate = d => new Date(d+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 // A UK number written for WhatsApp links (07700 900123 → 447700900123)
@@ -9433,6 +9458,12 @@ function BookPooja({ sevas=[], sponsorships=[], members=[], generalOffers=[], up
         <h2 className="text-xl font-bold text-slate-800">🪔 Book a Pooja</h2>
         <p className="text-sm text-slate-500 mt-0.5">Ask for a pooja or sponsorship on a special day. The temple will confirm your booking.</p>
       </div>
+      {(orgContact(config) || orgBank(config)) && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600 space-y-1">
+          {orgContact(config) && <div>📞 Questions: {orgContact(config)}</div>}
+          {orgBank(config) && <div>🏦 To donate online: {orgBank(config)}. Please use your name and the occasion as the reference.</div>}
+        </div>
+      )}
       {items.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-400">No services are set up for booking yet.</div>
       ) : !review ? (
@@ -9513,7 +9544,9 @@ function MDBookings({ generalOffers=[], upGeneralOffers, config={}, showToast })
   const waText = o => o.status === "declined"
     ? "🙏 Namaste " + o.name + ", thank you for your booking request at " + org + " for " + o.item.name + " on " + bookingDate(o.date) + ". Unfortunately we can't accommodate it" + (o.adminNote ? ": " + o.adminNote : ".") + " Please contact us to arrange another date."
     : "🙏 Namaste " + o.name + ", your booking at " + org + " is confirmed: " + o.item.name + " on " + bookingDate(o.date) + " (" + o.occasion + ")."
-      + (o.item.charge ? " Suggested donation £" + o.item.charge + ", paid at the temple." : "") + (o.adminNote ? " " + o.adminNote.trim().replace(/([^.!?])$/, "$1.") : "") + " We look forward to seeing you.";
+      + (o.item.charge ? " Suggested donation £" + o.item.charge + (orgBank(config) ? ", at the temple or online." : ", paid at the temple.") : "") + (o.adminNote ? " " + o.adminNote.trim().replace(/([^.!?])$/, "$1.") : "")
+      + (orgBank(config) ? " To donate online: " + orgBank(config) + " (reference: " + o.name + ")." : "")
+      + (orgContact(config) ? " Questions: " + orgContact(config) + "." : "") + " We look forward to seeing you.";
   const STATUS = { pending:"bg-amber-100 text-amber-700", accepted:"bg-emerald-100 text-emerald-700", declined:"bg-red-100 text-red-600", cancelled:"bg-slate-100 text-slate-500" };
   const LABEL = { pending:"Pending", accepted:"Accepted", declined:"Declined", cancelled:"Cancelled by them" };
   return (
