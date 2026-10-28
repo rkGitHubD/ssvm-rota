@@ -7366,8 +7366,12 @@ function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, re
   const sheetFound = rotaSheets.find(s => s.id === editId);
   const plannedPrasadham = sh => { const id = allSlots.filter(sl => localDay(sl.date) === sh.date).map(sl => (rotas[sl.key]||{}).prasadhamId).find(Boolean);
     return ((prasadham||[]).find(p => p.id === id) || {}).name || ""; };
-  const currentSheet = sheetFound && !sheetFound.prasadhamProvider && sheetFound.status !== "closed" && plannedPrasadham(sheetFound)
-    ? { ...sheetFound, prasadhamProvider: plannedPrasadham(sheetFound) } : sheetFound;
+  // Sponsorships for the sheet's day, as they are now
+  const liveSponsors = sh => (sponsorships||[]).flatMap(a => (a.donations||[]).filter(d => (d.rotaDates||[]).includes(sh.date)).map(d => d.donor ? d.donor + " (" + a.name + ")" : a.name))
+    .concat(servicePaidOn(rotaSheets, sh.date).map(d => d.donor + " (" + d.area + ")")).join(", ");
+  // An open sheet follows the plan: prasadham and sponsorships added after it was opened still show
+  const currentSheet = sheetFound && sheetFound.status !== "closed"
+    ? { ...sheetFound, prasadhamProvider: sheetFound.prasadhamProvider || plannedPrasadham(sheetFound), sponsors: liveSponsors(sheetFound) || sheetFound.sponsors || "" } : sheetFound;
   const upSheet = (updated) => {
     upRotaSheets(rotaSheets.map(s => s.id === updated.id ? updated : s));
   };
