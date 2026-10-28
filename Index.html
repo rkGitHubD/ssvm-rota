@@ -90,6 +90,8 @@ const isConfigured = () => { const c=getSupaCfg(); return !!(c.url && c.key); };
 // Falls back to localStorage if Supabase not configured
 const DB = {
   token: null,      // session token from rota_login
+  pending: 0,       // saves in flight
+  writes: 0,        // saves started, ever — a refresh is dropped if this moved while it loaded
   onError: null,    // set by App to surface save failures
   rpc: async (fn, args) => {
     const c = getSupaCfg();
@@ -120,10 +122,12 @@ const DB = {
   set: async (key, value) => {
     if (!isConfigured()) { LS.set(key, value); return; }
     if (!DB.token) return;
+    DB.pending++; DB.writes++;
     try {
       const res = await DB.rpc("rota_save", { p_token: DB.token, p_key: key, p_value: value });
       if (res.error) { console.error("DB.set error:", key, res.error); if (DB.onError) DB.onError(res.error); }
     } catch(e) { console.error("DB.set failed:", e); if (DB.onError) DB.onError(e.message); }
+    finally { DB.pending--; }
   },
   logout: async () => {
     if (isConfigured() && DB.token) { try { await DB.rpc("rota_logout", { p_token: DB.token }); } catch(e) {} }
@@ -132,6 +136,21 @@ const DB = {
   // Read single key (used for offline fallback only)
   get: (key, fallback) => LS.get(key, fallback),
 };
+
+// The fresh value, but reusing the old objects wherever nothing changed (by id in lists)
+function keepSame(prev, next) {
+  if (prev === next) return prev;
+  if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+  if (Array.isArray(prev) && Array.isArray(next)) {
+    const byId = {}; prev.forEach(x => { if (x && x.id != null) byId[x.id] = x; });
+    return next.map((x, i) => x && x.id != null && byId[x.id] !== undefined ? keepSame(byId[x.id], x) : keepSame(prev[i], x));
+  }
+  if (prev && next && typeof prev === "object" && typeof next === "object" && !Array.isArray(prev) && !Array.isArray(next) && !(prev instanceof Date)) {
+    const out = {}; Object.keys(next).forEach(k => { out[k] = keepSame(prev[k], next[k]); });
+    return out;
+  }
+  return next;
+}
 
 const DEFAULT_CONFIG = {
   orgName: "Volunteer Rota", location: "Community Hall, Main Street",
@@ -355,6 +374,35 @@ function App() {
         setBudgets(g("rota-budgets", []));
         setPriests(g("rota-priests", []));
   };
+
+  // ── Stay in sync with other devices ───────────────────────────────────────
+  // Reload the shared data when the app comes back into view and every 45s while it's
+  // showing. Only keys that came back are applied, and unchanged parts keep their old
+  // objects so screens being edited aren't reset.
+  useEffect(() => {
+    if (!userRole || !isConfigured()) return;
+    const setters = { "rota-acts":setActs, "rota-members":setMembers, "rota-rotas":setRotas, "rota-specials":setSpec,
+      "rota-registers":setRegs, "rota-regentries":setRegEntries, "rota-sheets":setRotaSheets, "rota-offers":setGeneralOffers,
+      "rota-cash":setCashInHand, "rota-sevas":setServices, "rota-sponsorships":setSponsorships, "rota-inventory":setInventory,
+      "rota-itineraries":setItineraries, "rota-prasadham":setPrasadham, "rota-hundi":setHundi, "rota-budgets":setBudgets, "rota-priests":setPriests };
+    let busy = false;
+    const refresh = async () => {
+      if (busy || document.visibilityState !== "visible" || DB.pending > 0 || !DB.token) return;
+      busy = true;
+      const before = DB.writes;
+      try {
+        const map = await DB.loadAll();
+        if (!map || DB.pending > 0 || DB.writes !== before) return;   // saved meanwhile: try next time
+        Object.entries(setters).forEach(([k, set]) => { if (k in map) set(prev => keepSame(prev, map[k])); });
+        if ("rota-config" in map) setConfig(prev => keepSame(prev, { ...DEFAULT_CONFIG, ...map["rota-config"] }));
+      } finally { busy = false; }
+    };
+    const onShow = () => { if (document.visibilityState === "visible") refresh(); };
+    const t = setInterval(refresh, 45 * 1000);
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onShow); window.removeEventListener("focus", onShow); };
+  }, [userRole]);
 
   // This year's weeks, plus next year's once a rota has been generated or assigned for it
   const nextYearWeeks = getWeeksForYear(config.year + 1);
