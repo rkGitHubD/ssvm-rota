@@ -3962,21 +3962,29 @@ function RotaDetail({ slot, rota, members, activities, config, onSave, onRemove,
 // Stored on the rota day itself (rotas[key].prasadhamId), so it shows on the Rota Calendar,
 // Dashboard and that day's Rota Sheet. A special occasion on a Sunday shares the Sunday's row.
 const localDay = d => { const x = new Date(d); return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0"); };
-function prasadhamSlots(specials = [], n = 8) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const ymd = localDay;
-  const rows = [...getWeeksForYear(today.getFullYear()), ...getWeeksForYear(today.getFullYear() + 1)]
-    .map(w => ({ day:ymd(w.date), date:w.date, keys:[w.key], occasions:[] }));
+function rotaDayRows(fromYear, toYear, specials = []) {
+  let weeks = [];
+  for (let y = fromYear; y <= toYear; y++) weeks = weeks.concat(getWeeksForYear(y));
+  const rows = weeks.map(w => ({ day:localDay(w.date), date:w.date, keys:[w.key], occasions:[], sunday:true }));
   specials.forEach(sp => {
-    const day = ymd(sp.date), row = rows.find(r => r.day === day);
+    const day = localDay(sp.date), row = rows.find(r => r.day === day);
     if (row) { row.keys.push(sp.key); row.occasions.push(sp.label || sp.tag || "Special"); }
     else rows.push({ day, date:new Date(sp.date), keys:[sp.key], occasions:[sp.label || sp.tag || "Special"] });
   });
-  return rows.filter(r => r.date >= today).sort((a, b) => a.day.localeCompare(b.day)).slice(0, n);
+  return rows.sort((a, b) => a.day.localeCompare(b.day));
 }
+function prasadhamSlots(specials = [], n = 8) {
+  const today = localDay(new Date()), y = new Date().getFullYear();
+  return rotaDayRows(y, y + 1, specials).filter(r => r.day >= today).slice(0, n);
+}
+// The Sundays (and any occasion on them) from one date to another
+const sundaysBetween = (from, to, specials) =>
+  rotaDayRows(parseInt(from), parseInt(to), specials).filter(r => r.sunday && r.day >= from && r.day <= to);
+const shortSun = d => new Date(d + "T12:00:00").toLocaleDateString("en-GB",{ weekday:"short", day:"numeric", month:"short" });
 
 function PrasadhamPlan({ prasadham = [], rotas = {}, upRotas, specials = [], showToast }) {
   const [n, setN] = useState(8);
+  const [open, setOpen] = useState(false);
   const slots = prasadhamSlots(specials, n);
   const who = s => s.keys.map(k => (rotas[k] || {}).prasadhamId).find(Boolean) || "";
   const pname = id => (prasadham.find(p => p.id === id) || {}).name || "";
@@ -4018,15 +4026,17 @@ function PrasadhamPlan({ prasadham = [], rotas = {}, upRotas, specials = [], sho
   return (
     <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
+        <button onClick={()=>setOpen(!open)} className={"text-slate-400 text-xs transition-transform " + (open ? "rotate-90" : "")} title={open ? "Fold" : "Open"}>▶</button>
         <div className="flex-1 min-w-[12rem]">
-          <h3 className="font-bold text-slate-800">🍛 Prasadham plan — next
+          <h3 className="font-bold text-slate-800"><span onClick={()=>setOpen(!open)} className="cursor-pointer">🍛 Prasadham plan</span> — next
             <select value={n} onChange={e=>setN(parseInt(e.target.value))} className="mx-1.5 border border-slate-200 rounded-lg px-1.5 py-0.5 text-sm bg-white">{[6,7,8].map(x => <option key={x} value={x}>{x}</option>)}</select>weeks</h3>
           <p className="text-xs text-slate-400 mt-0.5">{filled} of {slots.length} filled. Each provider shows on that day's Rota Calendar, Dashboard and Rota Sheet.</p>
         </div>
-        <button onClick={fill} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-bold">✨ Fill empty weeks</button>
-        <button onClick={share} title="Share on WhatsApp" className="bg-[#25D366] hover:bg-[#1ebe57] text-white px-3 py-2 rounded-xl text-xs font-bold">Share list</button>
+        {open && <button onClick={fill} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-bold">✨ Fill empty weeks</button>}
+        {open && <button onClick={share} title="Share on WhatsApp" className="bg-[#25D366] hover:bg-[#1ebe57] text-white px-3 py-2 rounded-xl text-xs font-bold">Share list</button>}
+        {!open && <button onClick={()=>setOpen(true)} className="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-3 py-1.5 rounded-lg font-semibold">Show</button>}
       </div>
-      <div className="divide-y divide-slate-100">
+      {open && <div className="divide-y divide-slate-100">
         {slots.map(s => { const id = who(s), pv = prasadham.find(p => p.id === id); return (
           <div key={s.day} className="py-2 flex items-center gap-2 flex-wrap text-sm">
             <span className="w-28 font-medium text-slate-700">{new Date(s.date).toLocaleDateString("en-GB",{ weekday:"short", day:"numeric", month:"short" })}</span>
@@ -4038,30 +4048,42 @@ function PrasadhamPlan({ prasadham = [], rotas = {}, upRotas, specials = [], sho
               {prasadham.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>); })}
-      </div>
+      </div>}
     </div>
   );
 }
 
 // ── MD: Prasadham Providers ──────────────────────────────────────────────────
 function MDPrasadham({ prasadham, upPrasadham, showToast, rotas = {}, upRotas, specials = [] }) {
-  var blank = {name:"",phone:"",amount:"",collection:""};
+  var blank = {name:"",phone:"",amount:"",collection:"",fromWeek:"",toWeek:""};
+  // A provider's upcoming rota days, from the rota itself
+  var upcomingFor = function(id){ var y = new Date().getFullYear(), today = localDay(new Date());
+    return rotaDayRows(y, y + 1, specials).filter(function(r){ return r.day >= today && r.keys.some(function(k){ return (rotas[k]||{}).prasadhamId === id; }); }); };
+  var setWeeks = function(rows, id){ upRotas(function(prev){ var next = { ...prev };
+    rows.forEach(function(r){ r.keys.forEach(function(k){ next[k] = { ...(next[k]||{}), prasadhamId:id }; }); }); return next; }); };
   var [form,   setForm]   = React.useState(blank);
   var [editId, setEditId] = React.useState(null);
   var cancel = function(){ setEditId(null); setForm(blank); };
   var save = function(){
     if (!form.name.trim()) return showToast("Name is required","error");
-    if (editId) {
-      upPrasadham(prasadham.map(function(p){return p.id===editId?{...p,...form}:p;}));
-      showToast("Provider updated"); setEditId(null);
-    } else {
-      upPrasadham([...prasadham,{id:uid(),...form,name:form.name.trim()}]);
-      showToast("Provider added");
+    var from = form.fromWeek, to = form.toWeek || form.fromWeek, rows = [];
+    if (from || form.toWeek) {
+      if (!from) return showToast("Choose the first Sunday","error");
+      if (new Date(from+"T12:00:00").getDay() !== 0 || new Date(to+"T12:00:00").getDay() !== 0) return showToast("The weeks must start and end on a Sunday","error");
+      if (to < from) return showToast("The last Sunday is before the first","error");
+      rows = sundaysBetween(from, to, specials);
     }
-    setForm(blank);
+    var { fromWeek, toWeek, ...details } = form;
+    var id = editId || uid();
+    var taken = rows.filter(function(r){ return r.keys.some(function(k){ var o = (rotas[k]||{}).prasadhamId; return o && o !== id; }); }).length;
+    if (editId) upPrasadham(prasadham.map(function(p){return p.id===editId?{...p,...details}:p;}));
+    else upPrasadham([...prasadham,{id:id,...details,name:details.name.trim()}]);
+    if (rows.length) setWeeks(rows, id);
+    showToast((editId ? "Provider updated" : "Provider added") + (rows.length ? " · " + rows.length + " Sunday" + (rows.length>1?"s":"") + " set" + (taken ? " (" + taken + " replaced someone else)" : "") : ""));
+    setEditId(null); setForm(blank);
   };
   var remove = function(id){ upPrasadham(prasadham.filter(function(p){return p.id!==id;})); showToast("Provider removed"); if(editId===id){cancel();} };
-  var edit   = function(p){ setEditId(p.id); setForm({name:p.name,phone:p.phone||"",amount:p.amount||"",collection:p.collection||""}); };
+  var edit   = function(p){ setEditId(p.id); setForm({name:p.name,phone:p.phone||"",amount:p.amount||"",collection:p.collection||"",fromWeek:"",toWeek:""}); };
   return (
     <div className="space-y-6">
     <PrasadhamPlan prasadham={prasadham} rotas={rotas} upRotas={upRotas} specials={specials} showToast={showToast}/>
@@ -4076,6 +4098,22 @@ function MDPrasadham({ prasadham, upPrasadham, showToast, rotas = {}, upRotas, s
           <Field label="Contact Number" value={form.phone} onChange={v=>setForm({...form,phone:v})} placeholder="+44 7700 900000"/>
           <Field label="Amount We Pay (£)" value={form.amount} onChange={v=>setForm({...form,amount:v})} placeholder="e.g. 50"/>
           <Field label="Collection Method" value={form.collection} onChange={v=>setForm({...form,collection:v})} placeholder="e.g. Cash, Bank Transfer"/>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+            <div className="text-xs font-bold text-amber-800">🗓 Weeks they provide prasadham</div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs font-semibold text-slate-600">From Sunday<input type="date" value={form.fromWeek} onChange={e=>setForm({...form,fromWeek:e.target.value})} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"/></label>
+              <label className="text-xs font-semibold text-slate-600">To Sunday<input type="date" value={form.toWeek} min={form.fromWeek} onChange={e=>setForm({...form,toWeek:e.target.value})} className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"/></label>
+            </div>
+            {form.fromWeek && <p className="text-xs text-amber-700">{(function(){ var t = form.toWeek || form.fromWeek;
+              if (new Date(form.fromWeek+"T12:00:00").getDay() !== 0 || new Date(t+"T12:00:00").getDay() !== 0) return "⚠ Pick Sundays";
+              if (t < form.fromWeek) return "⚠ The last Sunday is before the first";
+              var n = sundaysBetween(form.fromWeek, t, specials).length; return n + " Sunday" + (n>1?"s":"") + ": " + shortSun(form.fromWeek) + (t !== form.fromWeek ? " – " + shortSun(t) : ""); })()}</p>}
+            {editId && (function(){ var up = upcomingFor(editId); return up.length > 0 && (
+              <div className="flex flex-wrap gap-1">{up.map(function(r){ return (
+                <span key={r.day} className="inline-flex items-center gap-1 bg-white border border-amber-200 text-amber-800 text-xs px-2 py-0.5 rounded-full">{shortSun(r.day)}
+                  <button onClick={function(){ setWeeks([r], ""); }} title="Take them off this day" className="font-bold text-amber-400 hover:text-red-600">×</button></span>); })}</div>); })()}
+            <p className="text-xs text-slate-400">Optional. Every Sunday in between is set to this provider and shows on the Rota Calendar and that day's Rota Sheet.</p>
+          </div>
           <button onClick={save} className="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-bold hover:bg-indigo-700">{editId?"Save Changes":"Add Provider"}</button>
         </div>
       </div>
@@ -4091,6 +4129,7 @@ function MDPrasadham({ prasadham, upPrasadham, showToast, rotas = {}, upRotas, s
                 {p.amount && <span>💷 £{p.amount}</span>}
                 {p.collection && <span>🏦 {p.collection}</span>}
               </div>
+              {(function(){ var up = upcomingFor(p.id); return up.length > 0 && <div className="text-xs text-amber-700 mt-1">🗓 {up.slice(0,4).map(function(r){ return shortSun(r.day); }).join(" · ")}{up.length > 4 ? " (+" + (up.length-4) + " more)" : ""}</div>; })()}
             </div>
             <div className="flex gap-1 flex-shrink-0">
               <button onClick={function(){edit(p);}} className="text-xs bg-slate-50 border border-slate-200 text-slate-600 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 font-medium">Edit</button>
@@ -7259,7 +7298,11 @@ function RotaSheetTab({ rotaSheets, upRotaSheets, members, registers, upRegs, re
   const openEdit = id => { setEditId(id); setView("edit"); };
   const backToList = () => { setView("list"); setEditId(null); };
 
-  const currentSheet = rotaSheets.find(s => s.id === editId);
+  const sheetFound = rotaSheets.find(s => s.id === editId);
+  const plannedPrasadham = sh => { const id = allSlots.filter(sl => localDay(sl.date) === sh.date).map(sl => (rotas[sl.key]||{}).prasadhamId).find(Boolean);
+    return ((prasadham||[]).find(p => p.id === id) || {}).name || ""; };
+  const currentSheet = sheetFound && !sheetFound.prasadhamProvider && sheetFound.status !== "closed" && plannedPrasadham(sheetFound)
+    ? { ...sheetFound, prasadhamProvider: plannedPrasadham(sheetFound) } : sheetFound;
   const upSheet = (updated) => {
     upRotaSheets(rotaSheets.map(s => s.id === updated.id ? updated : s));
   };
@@ -7745,7 +7788,7 @@ function RotaSheetMobile({ sheet, upSheet, onBack, archanaiReg, donationReg, exp
         <div className="flex-1 min-w-0">
           <div className="font-bold text-lg">{new Date(s.date).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div>
           <div className="text-indigo-200 text-sm mt-0.5">🎯 {s.rotaLead||"—"} &nbsp;·&nbsp; 🟣 {s.rotaSupport||"—"}</div>
-          {s.priest && <div className="text-indigo-200 text-xs mt-0.5">🔔 {s.priest}{s.prasadhamProvider?" · 🍛 "+s.prasadhamProvider:""}</div>}
+          {(s.priest || s.prasadhamProvider) && <div className="text-indigo-200 text-xs mt-0.5">{[s.priest && "🔔 " + s.priest, s.prasadhamProvider && "🍛 Prasadham: " + s.prasadhamProvider].filter(Boolean).join(" · ")}</div>}
           {s.sponsors && <div className="text-indigo-200 text-xs mt-0.5">🤝 {s.sponsors}</div>}
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-2">
